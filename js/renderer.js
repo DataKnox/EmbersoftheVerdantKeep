@@ -752,22 +752,22 @@ const Renderer = (() => {
   function drawPickup(p, camera, t) {
     if (p.collected) return;
     const bob = Math.sin(t * 3 + p.bobPhase) * 1.5;
-    const x = Math.floor(p.x - camera.x);
-    const y = Math.floor(p.y - camera.y + bob);
-    if (p.type === 'gem')   drawGem(x, y, t);
-    if (p.type === 'heart') drawHeart(x, y, t);
-    if (p.type === 'relic') drawRelic(x, y, t);
+    // p.x, p.y = center; each draw routine offsets to its own bounding box
+    const cx = Math.floor(p.x - camera.x);
+    const cy = Math.floor(p.y - camera.y + bob);
+    if (p.type === 'gem')   drawGem(cx, cy, t);
+    if (p.type === 'heart') drawHeart(cx, cy, t);
+    if (p.type === 'relic') drawRelic(cx, cy, t);
   }
 
-  function drawGem(x, y, t) {
+  function drawGem(cx, cy, t) {
     const P = PALETTE;
-    // sparkle halo
+    const x = cx - 3, y = cy - 4;       // 6 wide × 7 tall sprite
     const blink = Math.floor(t * 6) % 8 === 0;
     if (blink) {
       ctx.fillStyle = 'rgba(168,230,240,0.18)';
-      ctx.fillRect(x - 4, y - 1, 14, 8);
+      ctx.fillRect(x - 4, y - 1, 14, 9);
     }
-    // diamond shape — 6 wide × 8 tall
     fr(x + 2, y, 2, 1, P.gemBlueHL);
     fr(x + 1, y + 1, 4, 1, P.gemBlue);
     fr(x, y + 2, 6, 2, P.gemBlue);
@@ -775,15 +775,15 @@ const Renderer = (() => {
     fr(x, y + 4, 6, 1, P.gemBlueDark);
     fr(x + 1, y + 5, 4, 1, P.gemBlueDark);
     fr(x + 2, y + 6, 2, 1, P.gemBlueDark);
-    // sparkle pixel that rotates
     const sp = (Math.floor(t * 4) % 4);
     const sx = x + [0, 5, 5, 0][sp];
     const sy = y + [0, 0, 6, 6][sp];
     fr(sx, sy, 1, 1, P.white);
   }
 
-  function drawHeart(x, y, t) {
+  function drawHeart(cx, cy, t) {
     const P = PALETTE;
+    const x = cx - 3, y = cy - 3;       // 7 wide × 7 tall
     const pulse = Math.floor(t * 3) % 2 === 0;
     const c = pulse ? P.heartRed : P.heartHL;
     fr(x + 1, y + 1, 2, 1, c);
@@ -792,16 +792,18 @@ const Renderer = (() => {
     fr(x + 1, y + 4, 5, 1, c);
     fr(x + 2, y + 5, 3, 1, c);
     fr(x + 3, y + 6, 1, 1, c);
-    // highlight
     fr(x + 1, y + 2, 1, 1, P.heartHL);
     fr(x + 2, y + 2, 1, 1, P.heartHL);
     fr(x, y + 3, 1, 1, P.heartDark);
   }
 
-  function drawRelic(x, y, t) {
+  function drawRelic(cx, cy, t) {
     const P = PALETTE;
-    // crown-like artifact: chalice with shimmer
+    const x = cx - 5, y = cy - 5;       // 10 wide × 10 tall
     const shimmer = (Math.floor(t * 8) % 4);
+    // soft golden glow
+    ctx.fillStyle = 'rgba(255,242,176,0.18)';
+    ctx.fillRect(x - 3, y - 1, 16, 11);
     fr(x + 2, y, 6, 1, P.relicGoldDark);
     fr(x + 1, y + 1, 8, 1, P.relicGold);
     fr(x + 2, y + 2, 6, 4, P.relicGold);
@@ -810,9 +812,10 @@ const Renderer = (() => {
     fr(x + 3, y + 3, 4, 1, P.relicGoldHL);
     fr(x + 4, y + 6, 2, 2, P.relicGoldDark);
     fr(x + 3, y + 8, 4, 1, P.relicGoldDark);
-    // gem in center
+    // central gem
     fr(x + 4, y + 4, 2, 1, P.heartRed);
-    // shimmer sparkle
+    fr(x + 4, y + 4, 1, 1, P.heartHL);
+    // rotating shimmer pixel
     const sx = x + [9, -1, 0, 8][shimmer];
     const sy = y + [0, 2, 7, 7][shimmer];
     fr(sx, sy, 1, 1, P.white);
@@ -855,44 +858,130 @@ const Renderer = (() => {
 
   // ─── Title screen ─────────────────────────────────────────────────────────
   function drawTitle(t) {
-    // sky + parallax
     clear();
+    const ch = canvas.height, cw = canvas.width;
+
+    // Slow auto-scrolling parallax
     if (parallaxFar) {
-      ctx.drawImage(parallaxFar, (-(t * 4) % parallaxFar.width) | 0, canvas.height - parallaxFar.height - 4);
-      ctx.drawImage(parallaxFar, ((-(t * 4) % parallaxFar.width) + parallaxFar.width) | 0, canvas.height - parallaxFar.height - 4);
+      const fw = parallaxFar.width;
+      const ox = (-(t * 4) % fw + fw) % fw - fw;
+      ctx.drawImage(parallaxFar, ox | 0, ch - parallaxFar.height - 4);
+      ctx.drawImage(parallaxFar, (ox + fw) | 0, ch - parallaxFar.height - 4);
+      ctx.drawImage(parallaxFar, (ox + fw * 2) | 0, ch - parallaxFar.height - 4);
     }
     if (parallaxMid) {
-      ctx.drawImage(parallaxMid, (-(t * 8) % parallaxMid.width) | 0, canvas.height - parallaxMid.height + 8);
-      ctx.drawImage(parallaxMid, ((-(t * 8) % parallaxMid.width) + parallaxMid.width) | 0, canvas.height - parallaxMid.height + 8);
+      const mw = parallaxMid.width;
+      const ox = (-(t * 8) % mw + mw) % mw - mw;
+      ctx.drawImage(parallaxMid, ox | 0, ch - parallaxMid.height + 8);
+      ctx.drawImage(parallaxMid, (ox + mw) | 0, ch - parallaxMid.height + 8);
+      ctx.drawImage(parallaxMid, (ox + mw * 2) | 0, ch - parallaxMid.height + 8);
     }
+
+    // Foreground ground strip (so the player figure has somewhere to stand)
+    fr(0, ch - 28, cw, 4, PALETTE.grassMid);
+    fr(0, ch - 24, cw, 4, PALETTE.dirtMid);
+    fr(0, ch - 20, cw, 20, PALETTE.dirtDark);
+    // grass blades
+    for (let x = 4; x < cw; x += 7) {
+      fr(x + ((x * 13 + (t * 30 | 0)) % 5), ch - 28, 1, 1, PALETTE.grassHL);
+    }
+
+    // Idle player figure under the title
+    const pX = cw / 2 - 8;
+    const pY = ch - 28 - 20 + Math.floor(Math.sin(t * 2) * 0.6);
+    drawTitlePlayer(pX, pY, t);
+
     if (parallaxNear) {
-      ctx.drawImage(parallaxNear, (-(t * 16) % parallaxNear.width) | 0, canvas.height - parallaxNear.height + 6);
-      ctx.drawImage(parallaxNear, ((-(t * 16) % parallaxNear.width) + parallaxNear.width) | 0, canvas.height - parallaxNear.height + 6);
+      const nw = parallaxNear.width;
+      const ox = (-(t * 16) % nw + nw) % nw - nw;
+      ctx.drawImage(parallaxNear, ox | 0, ch - parallaxNear.height + 6);
+      ctx.drawImage(parallaxNear, (ox + nw) | 0, ch - parallaxNear.height + 6);
+      ctx.drawImage(parallaxNear, (ox + nw * 2) | 0, ch - parallaxNear.height + 6);
     }
+
     drawVignette();
 
-    const cx = canvas.width / 2;
+    const cx = cw / 2;
     // Title plate
-    ctx.fillStyle = 'rgba(20,12,32,0.55)';
-    ctx.fillRect(cx - 110, 36, 220, 50);
+    ctx.fillStyle = 'rgba(20,12,32,0.62)';
+    ctx.fillRect(cx - 112, 22, 224, 56);
     ctx.strokeStyle = PALETTE.relicGold;
     ctx.lineWidth = 1;
-    ctx.strokeRect(cx - 110 + 0.5, 36 + 0.5, 219, 49);
+    ctx.strokeRect(cx - 112 + 0.5, 22.5, 223, 55);
+    // inner decorative line
+    ctx.strokeStyle = 'rgba(244,201,82,0.35)';
+    ctx.strokeRect(cx - 109 + 0.5, 25.5, 217, 49);
 
     ctx.fillStyle = PALETTE.relicGold;
-    ctx.font = 'bold 14px monospace';
+    ctx.font = 'bold 12px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('EMBERS OF THE', cx, 56);
+    ctx.fillText('EMBERS OF THE', cx, 44);
     ctx.fillStyle = PALETTE.relicGoldHL;
-    ctx.fillText('VERDANT KEEP', cx, 74);
+    ctx.font = 'bold 14px monospace';
+    ctx.fillText('VERDANT KEEP', cx, 62);
 
     ctx.fillStyle = PALETTE.uiCream;
     ctx.font = '7px monospace';
     if (Math.floor(t * 2) % 2 === 0) {
-      ctx.fillText('PRESS ENTER TO BEGIN', cx, 116);
+      ctx.fillText('PRESS  ENTER  TO  BEGIN', cx, 110);
     }
-    ctx.fillStyle = 'rgba(244,236,208,0.5)';
-    ctx.fillText('ARROWS / WASD  ·  SPACE  ·  X / J  ·  M MUTE', cx, 170);
+    ctx.fillStyle = 'rgba(244,236,208,0.45)';
+    ctx.fillText('ARROWS / WASD  MOVE   ·   SPACE  JUMP', cx, ch - 28);
+    ctx.fillText('X / J  ATTACK   ·   M  MUTE', cx, ch - 18);
+  }
+
+  // Standalone idle figure for the title screen.
+  function drawTitlePlayer(sx, sy, t) {
+    ctx.save();
+    ctx.translate(sx, sy);
+    const bob = Math.floor(Math.sin(t * 2) * 0.5);
+    paintPlayerStanding(t, bob);
+    ctx.restore();
+  }
+
+  function paintPlayerStanding(t, bob) {
+    const P = PALETTE;
+    // identical to paintPlayer's idle rendering (kept inline so title screen
+    // doesn't need a real Player object)
+    fr(6, 1 + bob, 4, 1, P.cloakDark);
+    fr(5, 2 + bob, 6, 1, P.cloakDark);
+    fr(4, 3 + bob, 8, 1, P.cloakDark);
+    fr(4, 4 + bob, 1, 3, P.cloakDark);
+    fr(11, 4 + bob, 1, 3, P.cloakDark);
+    fr(4, 7 + bob, 8, 1, P.cloakDark);
+    fr(5, 4 + bob, 1, 2, P.cloakMid);
+    fr(10, 4 + bob, 1, 2, P.cloakMid);
+    fr(6, 4 + bob, 4, 2, P.skin);
+    fr(8, 5 + bob, 1, 1, P.skinShadow);
+    fr(7, 6 + bob, 3, 1, P.skin);
+    fr(4, 7 + bob, 8, 1, P.cloakDark);
+    fr(3, 8 + bob, 10, 1, P.cloakMid);
+    fr(3, 8 + bob, 1, 1, P.cloakDark);
+    fr(12, 8 + bob, 1, 1, P.cloakDark);
+    fr(3, 9 + bob, 10, 6, P.cloakMid);
+    fr(3, 9 + bob, 1, 6, P.cloakDark);
+    fr(12, 9 + bob, 1, 6, P.cloakDark);
+    fr(4, 9 + bob, 1, 1, P.cloakLight);
+    fr(4, 14 + bob, 8, 1, P.cloakDark);
+    fr(4, 15, 8, 1, P.cloakMid);
+    fr(4, 15, 1, 1, P.cloakDark);
+    fr(11, 15, 1, 1, P.cloakDark);
+    // sword
+    fr(11, 9 + bob, 1, 1, P.bladeDark);
+    fr(11, 10 + bob, 1, 1, P.hiltGold);
+    fr(11, 11 + bob, 1, 1, P.hiltGoldHL);
+    fr(11, 12 + bob, 1, 1, P.hiltGold);
+    fr(11, 13 + bob, 1, 1, P.bladeDark);
+    fr(11, 14 + bob, 1, 1, P.bladeLight);
+    fr(11, 15, 1, 1, P.bladeLight);
+    fr(11, 16, 1, 1, P.bladeHL);
+    // legs/boots
+    fr(4, 16, 2, 2, P.cloakDark);
+    fr(10, 16, 2, 2, P.cloakDark);
+    fr(4, 18, 2, 1, P.bootLight);
+    fr(10, 18, 2, 1, P.bootLight);
+    fr(4, 19, 2, 1, P.bootDark);
+    fr(10, 19, 2, 1, P.bootDark);
   }
 
   // ─── Misc helpers ─────────────────────────────────────────────────────────

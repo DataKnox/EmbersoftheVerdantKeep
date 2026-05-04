@@ -16,9 +16,13 @@ const Game = (() => {
   let titleAnim = 0;
   let gameOverTimer = 0;
 
-  // HUD-ish state
+  // HUD / juice state
   let lastDoubleJumpFlash = 0;
   let firstCheckpointActivated = false;
+  let relicToast = 0;
+  let muteToast = 0;
+  let hurtFlash = 0;
+  let hitstop = 0;        // global brief time-stop on heavy hits
 
   function init() {
     canvas = document.getElementById('game');
@@ -81,7 +85,12 @@ const Game = (() => {
 
     if (Input.justPressed('mute')) {
       Audio.toggleMute();
+      muteToast = 1.4;
     }
+    if (muteToast > 0) muteToast = Math.max(0, muteToast - dt);
+    if (relicToast > 0) relicToast = Math.max(0, relicToast - dt);
+    if (hurtFlash > 0) hurtFlash = Math.max(0, hurtFlash - dt);
+    if (hitstop > 0) { hitstop -= dt; if (hitstop > 0) return; }
 
     if (state === STATE.TITLE) {
       if (Input.justPressed('confirm')) {
@@ -172,7 +181,13 @@ const Game = (() => {
         pk.collected = true;
         if (pk.type === 'gem')   { player.gems += 1; Audio.play('gem'); }
         if (pk.type === 'heart') { player.hp = Math.min(Player.TUNING.MAX_HP, player.hp + 2); Audio.play('heart'); }
-        if (pk.type === 'relic') { player.hasRelic = true; Audio.play('relic'); triggerShake(2.0, 0.4); }
+        if (pk.type === 'relic') {
+          player.hasRelic = true;
+          Audio.play('relic');
+          triggerShake(2.0, 0.45);
+          relicToast = 4.0;
+          hitstop = 0.06;
+        }
         sparkleAt(pk.x, pk.y, pk.type);
       }
     }
@@ -271,6 +286,8 @@ const Game = (() => {
           if (Player.damage(player, ENEMY_DMG(e), e.x + e.w / 2)) {
             Audio.play('hurt');
             triggerShake(3.0, 0.28);
+            hurtFlash = 0.32;
+            hitstop = 0.05;
           }
           break;
         }
@@ -288,6 +305,8 @@ const Game = (() => {
               a.stuck = true; a.life = 0.4;
               Audio.play('hurt');
               triggerShake(2.6, 0.22);
+              hurtFlash = 0.30;
+              hitstop = 0.04;
             }
             break outer;
           }
@@ -494,21 +513,38 @@ const Game = (() => {
       // Vignette
       Renderer.drawVignette();
 
+      // Hurt-flash red overlay
+      if (hurtFlash > 0) {
+        ctx.fillStyle = `rgba(217,67,63,${(hurtFlash / 0.32) * 0.35})`;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+
       drawHUD();
 
-      if (state === STATE.GAME_OVER) {
-        ctx.fillStyle = 'rgba(8,4,16,0.55)';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = Renderer.PALETTE.relicGold;
-        ctx.font = 'bold 12px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText('YOUR EMBER FADES', canvas.width / 2, canvas.height / 2 - 6);
-        if (gameOverTimer > 0.6 && Math.floor(gameOverTimer * 2) % 2 === 0) {
-          ctx.fillStyle = Renderer.PALETTE.uiCream;
-          ctx.font = '8px monospace';
-          ctx.fillText('PRESS ENTER TO TRY AGAIN', canvas.width / 2, canvas.height / 2 + 12);
-        }
-      }
+      if (state === STATE.GAME_OVER) drawGameOver();
+    }
+  }
+
+  function drawGameOver() {
+    const P = Renderer.PALETTE;
+    const cw = canvas.width, ch = canvas.height;
+    ctx.fillStyle = `rgba(8,4,16,${Math.min(0.7, gameOverTimer * 1.6)})`;
+    ctx.fillRect(0, 0, cw, ch);
+
+    ctx.fillStyle = P.relicGold;
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('YOUR EMBER FADES', cw / 2, ch / 2 - 18);
+
+    ctx.fillStyle = P.uiCream;
+    ctx.font = '8px monospace';
+    ctx.fillText(`Gems gathered:  ${player.gems}`, cw / 2, ch / 2 + 2);
+    ctx.fillStyle = player.hasRelic ? P.relicGoldHL : 'rgba(244,236,208,0.45)';
+    ctx.fillText(player.hasRelic ? '★ Verdant relic recovered ★' : 'The relic remains lost…', cw / 2, ch / 2 + 14);
+
+    if (gameOverTimer > 0.7 && Math.floor(gameOverTimer * 2) % 2 === 0) {
+      ctx.fillStyle = P.uiCream;
+      ctx.fillText('PRESS ENTER TO TRY AGAIN', cw / 2, ch / 2 + 36);
     }
   }
 
@@ -537,11 +573,11 @@ const Game = (() => {
     ctx.fillStyle = P.uiCream;
     ctx.fillText(txt, x + 10, y + 8);
 
-    // Relic indicator
+    // Relic indicator (small icon when held)
     if (player.hasRelic) {
-      ctx.fillStyle = P.relicGoldHL;
       const flicker = Math.floor(elapsed * 6) % 2;
-      ctx.fillText('★ RELIC', canvas.width / 2 - 18, y + 8 + flicker);
+      ctx.fillStyle = P.relicGoldHL;
+      ctx.fillText('★', canvas.width / 2 - 4, y + 9 + flicker);
     }
 
     // Double-jump unlock flash
@@ -552,6 +588,32 @@ const Game = (() => {
       ctx.font = 'bold 8px monospace';
       ctx.textAlign = 'center';
       ctx.fillText('DOUBLE JUMP UNLOCKED', canvas.width / 2, 28);
+    }
+
+    // Relic acquired toast
+    if (relicToast > 0) {
+      const a = Math.min(1, relicToast / 1.0);
+      const yo = Math.min(1, (4 - relicToast) * 1.2);
+      ctx.fillStyle = `rgba(20,12,32,${0.55 * a})`;
+      ctx.fillRect(canvas.width / 2 - 84, 36 - yo * 0, 168, 22);
+      ctx.strokeStyle = `rgba(244,201,82,${a})`;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(canvas.width / 2 - 84 + 0.5, 36.5, 167, 21);
+      ctx.fillStyle = `rgba(255,242,176,${a})`;
+      ctx.font = 'bold 8px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('★  THE VERDANT RELIC  ★', canvas.width / 2, 50);
+    }
+
+    // Mute indicator toast
+    if (muteToast > 0) {
+      const a = Math.min(1, muteToast / 0.6);
+      ctx.fillStyle = `rgba(20,12,32,${0.6 * a})`;
+      ctx.fillRect(canvas.width / 2 - 36, canvas.height - 22, 72, 14);
+      ctx.fillStyle = `rgba(244,236,208,${a})`;
+      ctx.font = 'bold 7px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(Audio.isMuted() ? 'AUDIO  MUTED' : 'AUDIO  ON', canvas.width / 2, canvas.height - 12);
     }
   }
 

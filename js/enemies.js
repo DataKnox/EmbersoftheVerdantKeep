@@ -10,11 +10,14 @@ const Enemies = (() => {
     wisp:  { hp: 1, w: 10, h: 10, chaseRange: 76, chaseAccel: 70, drag: 0.92, contactDmg: 1 },
   };
 
-  function create(type, x, y) {
+  function create(type, cx, by) {
+    // cx,by = bottom-center spawn point (as written in level data)
     const t = ENEMY_TUNING[type] || ENEMY_TUNING.slime;
+    const x = cx - t.w / 2;
+    const y = by - t.h;
     const base = {
       type,
-      x, y: y - t.h,           // anchor at top-left of body box
+      x, y,
       vx: 0, vy: 0,
       w: t.w, h: t.h,
       hp: t.hp,
@@ -27,7 +30,7 @@ const Enemies = (() => {
       dead: false,
       animTime: 0,
       timer: 0,
-      ax: x, ay: y - t.h,       // anchor for hover/return
+      ax: x, ay: y,             // anchor for hover/return
     };
     if (type === 'slime')   return { ...base, jumpTimer: 0.4 + Math.random() };
     if (type === 'archer')  return { ...base, shootTimer: 0.8 + Math.random(), aimAngle: 0, drawing: 0, arrows: [] };

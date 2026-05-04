@@ -260,10 +260,12 @@ const Player = (() => {
       damage(p, 1, p.x + p.w / 2);   // self-source center → just bounces up
     }
 
-    // Falling out the bottom of the level → instant respawn at last safe ground
+    // Falling out the bottom of the level → take damage, respawn at last
+    // safe ground only if still alive. If the fall kills, leave them dead so
+    // game.js transitions to GAME_OVER.
     if (p.y > level.pixelHeight + 32) {
       damage(p, 1, p.x + p.w / 2);
-      respawn(p);
+      if (p.hp > 0) respawn(p);
     }
   }
 
