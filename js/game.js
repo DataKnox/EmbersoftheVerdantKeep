@@ -137,6 +137,7 @@ const Game = (() => {
       }
 
       Enemies.update(enemies, dt, level, player);
+      processCombat(dt);
       updatePickups(dt);
       updateCheckpoints(dt);
       Particles.update(particles, dt);
@@ -231,6 +232,126 @@ const Game = (() => {
 
   function rectsOverlap(ax, ay, aw, ah, bx, by, bw, bh) {
     return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+  }
+
+  // Combat: sword vs enemies, enemy contact, arrow contact.
+  function processCombat(dt) {
+    // 1. Sword hitbox vs enemies (only one hit per swing per enemy)
+    const hb = Player.attackHitbox(player);
+    if (hb) {
+      for (const e of enemies) {
+        if (e.dead || player.attackedHits.has(e)) continue;
+        if (rectsOverlap(hb.x, hb.y, hb.w, hb.h, e.x, e.y, e.w, e.h)) {
+          const before = e.hp;
+          Enemies.damage(e, Player.TUNING.ATTACK_DAMAGE, player.x + player.w / 2);
+          player.attackedHits.add(e);
+          Audio.play('hit');
+          triggerShake(2.4, 0.16);
+          spawnHitBurst(e);
+          if (e.hp <= 0) {
+            spawnDeathBurst(e);
+            Audio.play('death');
+            triggerShake(3.2, 0.22);
+            if (e.type !== 'wisp') {
+              // small score reward
+              player.gems += 0;  // (no gems for kills — but keep hook)
+            }
+          } else if (before > 0) {
+            // brief micro-shake on non-killing hit
+          }
+        }
+      }
+    }
+
+    // 2. Enemy body damages player on contact (when not invuln)
+    if (player.invuln <= 0 && player.state !== Player.STATE.DEAD) {
+      for (const e of enemies) {
+        if (e.dead) continue;
+        if (rectsOverlap(player.x, player.y, player.w, player.h, e.x, e.y, e.w, e.h)) {
+          if (Player.damage(player, ENEMY_DMG(e), e.x + e.w / 2)) {
+            Audio.play('hurt');
+            triggerShake(3.0, 0.28);
+          }
+          break;
+        }
+      }
+    }
+
+    // 3. Arrows damage player; both arrows and pit hazards already covered by Player.update
+    if (player.invuln <= 0 && player.state !== Player.STATE.DEAD) {
+      outer: for (const e of enemies) {
+        if (!e.arrows) continue;
+        for (const a of e.arrows) {
+          if (a.stuck) continue;
+          if (rectsOverlap(player.x, player.y, player.w, player.h, a.x - 4, a.y - 1, 8, 3)) {
+            if (Player.damage(player, 1, a.x)) {
+              a.stuck = true; a.life = 0.4;
+              Audio.play('hurt');
+              triggerShake(2.6, 0.22);
+            }
+            break outer;
+          }
+        }
+      }
+    }
+  }
+
+  function ENEMY_DMG(e) {
+    return (Enemies.ENEMY_TUNING[e.type] || {}).contactDmg || 1;
+  }
+
+  function spawnHitBurst(e) {
+    const cx = e.x + e.w / 2, cy = e.y + e.h / 2;
+    const palette = e.type === 'slime' ? ['#bff0d8', '#7ec8a8', '#4d8a7a']
+                  : e.type === 'archer' ? ['#e8e0c0', '#a89c78', '#3a2848']
+                  : ['#c0e8ff', '#7ab8e0', '#3a5a8a'];
+    Particles.burst(particles, cx, cy, {
+      count: 10,
+      speed: 110,
+      colors: palette,
+      kind: e.type === 'slime' ? 'goo' : 'spark',
+      ay: 200,
+      life: 0.3,
+    });
+    // tiny white flash sparkles
+    for (let i = 0; i < 4; i++) {
+      Particles.spawn(particles, {
+        x: cx + (Math.random() * 2 - 1) * 6,
+        y: cy + (Math.random() * 2 - 1) * 6,
+        vx: (Math.random() * 2 - 1) * 30,
+        vy: -30 - Math.random() * 40,
+        ay: 220, life: 0.18,
+        kind: 'spark', color: '#ffffff', size: 2,
+      });
+    }
+  }
+
+  function spawnDeathBurst(e) {
+    const cx = e.x + e.w / 2, cy = e.y + e.h / 2;
+    if (e.type === 'slime') {
+      Particles.burst(particles, cx, cy, {
+        count: 18, speed: 130,
+        colors: ['#bff0d8', '#7ec8a8', '#4d8a7a', '#2a4a44'],
+        kind: 'goo', ay: 360, life: 0.55,
+      });
+    } else if (e.type === 'archer') {
+      Particles.burst(particles, cx, cy, {
+        count: 14, speed: 110,
+        colors: ['#e8e0c0', '#a89c78'],
+        kind: 'bone', ay: 280, life: 0.6, drag: 0.97,
+      });
+      Particles.burst(particles, cx, cy, {
+        count: 8, speed: 80,
+        colors: ['#fde0a3', '#f4b860'],
+        kind: 'spark', ay: 80, life: 0.4,
+      });
+    } else if (e.type === 'wisp') {
+      Particles.burst(particles, cx, cy, {
+        count: 22, speed: 140,
+        colors: ['#c0e8ff', '#7ab8e0', '#ffffff'],
+        kind: 'spark', ay: 0, life: 0.55, drag: 0.94,
+      });
+    }
   }
 
   // Particles spawned along the path of a sword swing.
