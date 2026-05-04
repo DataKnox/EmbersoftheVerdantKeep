@@ -277,30 +277,8 @@ const Player = (() => {
     return { x: hx, y: hy, w: T.ATTACK_RANGE, h: T.ATTACK_HEIGHT };
   }
 
-  // Stub draw — proper sprite rendering arrives with the procedural-sprite commit.
-  function draw(ctx, p, camera) {
-    const sx = Math.floor(p.x - camera.x) + T.SPRITE_OFFSET_X;
-    const sy = Math.floor(p.y - camera.y) + T.SPRITE_OFFSET_Y;
-    const flash = p.invuln > 0 && Math.floor(p.invuln * T.HURT_FLASH_HZ) % 2 === 0;
-    if (flash) return;
-
-    // Body (placeholder block)
-    ctx.fillStyle = Renderer.PALETTE.cloakMid;
-    ctx.fillRect(sx + 3, sy + 4, 10, 16);
-    // Hood
-    ctx.fillStyle = Renderer.PALETTE.cloakDark;
-    ctx.fillRect(sx + 3, sy, 10, 6);
-    // Face
-    ctx.fillStyle = Renderer.PALETTE.skin;
-    ctx.fillRect(sx + 6, sy + 4, 4, 3);
-
-    // Active attack hitbox visualization (debug only)
-    const hb = attackHitbox(p);
-    if (hb) {
-      ctx.fillStyle = 'rgba(255,255,255,0.25)';
-      ctx.fillRect(Math.floor(hb.x - camera.x), Math.floor(hb.y - camera.y), hb.w, hb.h);
-    }
-  }
+  // Drawing is delegated to Renderer.drawPlayer (kept here as a no-op for compat).
+  function draw() {}
 
   return {
     create, update, draw,

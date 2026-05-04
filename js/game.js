@@ -1,4 +1,4 @@
-// game.js — main game loop, state machine, dispatch.
+// game.js — main loop, state machine, dispatch.
 
 const Game = (() => {
   const STATE = { TITLE: 'title', PLAYING: 'playing', GAME_OVER: 'gameover' };
@@ -8,14 +8,17 @@ const Game = (() => {
   let lastTime = 0;
   let accumulator = 0;
   const FIXED_DT = 1 / 60;
-  const MAX_FRAME = 0.1;   // clamp huge dt (tab switch)
+  const MAX_FRAME = 0.1;
 
   let elapsed = 0;
-  let player, level, camera, particles, enemies;
+  let player, level, camera, particles, enemies, pickups, checkpoints;
   let shake = { x: 0, y: 0, intensity: 0, timer: 0 };
   let titleAnim = 0;
   let gameOverTimer = 0;
-  let tipShownAt = 0;
+
+  // HUD-ish state
+  let lastDoubleJumpFlash = 0;
+  let firstCheckpointActivated = false;
 
   function init() {
     canvas = document.getElementById('game');
@@ -27,11 +30,9 @@ const Game = (() => {
     Input.init();
     Renderer.preloadSprites();
 
-    // Show controls tip briefly
     const tip = document.getElementById('tip');
     tip.classList.add('show');
-    tipShownAt = performance.now();
-    setTimeout(() => tip.classList.remove('show'), 4500);
+    setTimeout(() => tip.classList.remove('show'), 5000);
 
     requestAnimationFrame(loop);
   }
@@ -40,9 +41,20 @@ const Game = (() => {
     level = Level.create();
     player = Player.create(level.spawn.x, level.spawn.y);
     enemies = Level.spawnEnemies(level);
+    pickups = Level.spawnPickups(level);
+    checkpoints = Level.spawnCheckpoints(level);
     particles = Particles.create();
     camera = { x: 0, y: 0 };
     shake = { x: 0, y: 0, intensity: 0, timer: 0 };
+    firstCheckpointActivated = false;
+    // Snap camera near player
+    snapCamera();
+  }
+
+  function snapCamera() {
+    const cw = canvas.width, ch = canvas.height;
+    camera.x = Math.max(0, Math.min(level.pixelWidth - cw, player.x - cw / 2));
+    camera.y = Math.max(0, Math.min(level.pixelHeight - ch, player.y - ch * 0.55));
   }
 
   function loop(now) {
@@ -56,7 +68,7 @@ const Game = (() => {
       accumulator -= FIXED_DT;
       steps++;
     }
-    if (accumulator >= FIXED_DT) accumulator = 0;  // bail out if super behind
+    if (accumulator >= FIXED_DT) accumulator = 0;
 
     render();
     Input.endFrame();
@@ -67,7 +79,6 @@ const Game = (() => {
     elapsed += dt;
     titleAnim += dt;
 
-    // Mute toggle (works in any state)
     if (Input.justPressed('mute')) {
       Audio.toggleMute();
     }
@@ -80,9 +91,56 @@ const Game = (() => {
         Audio.startMusic();
       }
     } else if (state === STATE.PLAYING) {
+      // diff player state to detect jumps and landings for FX
+      const prevOnGround = player.onGround;
+      const prevVy = player.vy;
+      const prevAttack = player.attackTimer;
       Player.update(player, dt, level, Input);
+
+      // Jump dust (left ground while moving up)
+      if (!player.onGround && prevOnGround && player.vy < 0) {
+        Audio.play('jump');
+        for (let i = 0; i < 6; i++) {
+          Particles.spawn(particles, {
+            x: player.x + player.w / 2 + (Math.random() * 6 - 3),
+            y: player.y + player.h - 1,
+            vx: (Math.random() * 2 - 1) * 50,
+            vy: -20 - Math.random() * 30,
+            ay: 220, drag: 0.92,
+            life: 0.25 + Math.random() * 0.2,
+            kind: 'dust',
+            color: 'rgba(244,236,208,0.45)',
+          });
+        }
+      }
+      // Landing dust (touched ground after a meaningful fall)
+      if (player.onGround && !prevOnGround && prevVy > 90) {
+        const heavy = prevVy > 220;
+        for (let i = 0; i < (heavy ? 14 : 8); i++) {
+          Particles.spawn(particles, {
+            x: player.x + player.w / 2 + (Math.random() * 12 - 6),
+            y: player.y + player.h - 1,
+            vx: (Math.random() * 2 - 1) * (heavy ? 110 : 70),
+            vy: -10 - Math.random() * 30,
+            ay: 240, drag: 0.9,
+            life: 0.3 + Math.random() * 0.25,
+            kind: 'dust',
+            color: 'rgba(220,200,170,0.45)',
+          });
+        }
+        if (heavy) triggerShake(1.6, 0.18);
+      }
+      // Attack started (small slash particles)
+      if (player.attackTimer > 0 && prevAttack <= 0) {
+        Audio.play('swing');
+        spawnSwingParticles();
+      }
+
       Enemies.update(enemies, dt, level, player);
+      updatePickups(dt);
+      updateCheckpoints(dt);
       Particles.update(particles, dt);
+      spawnAmbientFx(dt);
       updateCamera(dt);
       updateShake(dt);
 
@@ -101,13 +159,158 @@ const Game = (() => {
     }
   }
 
+  // Pickup / checkpoint collision logic
+  function updatePickups(dt) {
+    for (const pk of pickups) {
+      if (pk.collected) continue;
+      // AABB overlap (pickup as 8x8 around its center)
+      const r = 6;
+      const px = pk.x - r, py = pk.y - r;
+      const pw = r * 2, ph = r * 2;
+      if (rectsOverlap(player.x, player.y, player.w, player.h, px, py, pw, ph)) {
+        pk.collected = true;
+        if (pk.type === 'gem')   { player.gems += 1; Audio.play('gem'); }
+        if (pk.type === 'heart') { player.hp = Math.min(Player.TUNING.MAX_HP, player.hp + 2); Audio.play('heart'); }
+        if (pk.type === 'relic') { player.hasRelic = true; Audio.play('relic'); triggerShake(2.0, 0.4); }
+        sparkleAt(pk.x, pk.y, pk.type);
+      }
+    }
+  }
+
+  function updateCheckpoints(dt) {
+    for (const c of checkpoints) {
+      if (c.pulse > 0) c.pulse = Math.max(0, c.pulse - dt * 3);
+      if (c.activated) continue;
+      if (rectsOverlap(player.x, player.y, player.w, player.h, c.x - 4, c.y - 4, 16, 24)) {
+        c.activated = true;
+        c.pulse = 1;
+        Audio.play('checkpoint');
+        Player.setRespawn(player, player.x, player.y);
+        if (!firstCheckpointActivated) {
+          firstCheckpointActivated = true;
+          Player.unlockDoubleJump(player);
+          lastDoubleJumpFlash = 1.5;
+        }
+        // checkpoint sparkles
+        for (let i = 0; i < 14; i++) {
+          Particles.spawn(particles, {
+            x: c.x + 4, y: c.y + 4,
+            vx: (Math.random() * 2 - 1) * 50,
+            vy: -50 - Math.random() * 80,
+            ay: 200,
+            life: 0.5 + Math.random() * 0.4,
+            kind: 'spark',
+            color: '#fde0a3',
+          });
+        }
+        triggerShake(1.2, 0.18);
+      }
+    }
+  }
+
+  function sparkleAt(x, y, type) {
+    const colorMap = {
+      gem:   ['#a8e6f0', '#5ec1d8'],
+      heart: ['#ff7d6a', '#d9433f'],
+      relic: ['#fff2b0', '#f4c952'],
+    };
+    const colors = colorMap[type] || ['#ffffff', '#f4ecd0'];
+    const count = type === 'relic' ? 24 : 10;
+    for (let i = 0; i < count; i++) {
+      Particles.spawn(particles, {
+        x, y,
+        vx: (Math.random() * 2 - 1) * 80,
+        vy: -50 - Math.random() * 80,
+        ay: 240,
+        life: 0.4 + Math.random() * 0.4,
+        kind: 'spark',
+        color: colors[i & 1],
+      });
+    }
+  }
+
+  function rectsOverlap(ax, ay, aw, ah, bx, by, bw, bh) {
+    return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+  }
+
+  // Particles spawned along the path of a sword swing.
+  function spawnSwingParticles() {
+    const dir = player.facing;
+    const cx = player.x + player.w / 2 + dir * 6;
+    const cy = player.y + player.h / 2 - 2;
+    for (let i = 0; i < 8; i++) {
+      const r = i / 7;
+      Particles.spawn(particles, {
+        x: cx + dir * (4 + r * 14),
+        y: cy + Math.sin(r * Math.PI) * -4,
+        vx: dir * 60 + (Math.random() * 30 - 15),
+        vy: (Math.random() * 30 - 15),
+        ay: 30,
+        life: 0.12 + Math.random() * 0.06,
+        kind: 'slash',
+        color: i < 4 ? '#ffffff' : '#d8dcec',
+        size: 3 - i * 0.3,
+      });
+    }
+  }
+
+  // Ambient embers near torches and drifting leaves in the forest.
+  let ambientCooldown = 0;
+  function spawnAmbientFx(dt) {
+    ambientCooldown -= dt;
+    if (ambientCooldown > 0) return;
+    ambientCooldown = 0.05;
+    const cw = canvas.width, ch = canvas.height;
+    // Torch embers — sample any torch tile in view
+    const TS = level.tileSize;
+    const x0 = Math.max(0, Math.floor(camera.x / TS));
+    const x1 = Math.min(level.width, Math.ceil((camera.x + cw) / TS));
+    const y0 = Math.max(0, Math.floor(camera.y / TS));
+    const y1 = Math.min(level.height, Math.ceil((camera.y + ch) / TS));
+    for (let ty = y0; ty < y1; ty++) {
+      for (let tx = x0; tx < x1; tx++) {
+        const t = level.tiles[ty][tx];
+        if (t === Level.T.TORCH && Math.random() < 0.18) {
+          Particles.spawn(particles, {
+            x: tx * TS + 8 + (Math.random() * 2 - 1),
+            y: ty * TS + 2,
+            vx: (Math.random() * 2 - 1) * 8,
+            vy: -8 - Math.random() * 16,
+            ay: -12,
+            life: 0.6 + Math.random() * 0.6,
+            kind: 'ember',
+            color: '#f4b860',
+          });
+        }
+      }
+    }
+    // Forest ambient leaves — drift in the leftmost ~22 tiles when visible
+    if (camera.x < 22 * TS && Math.random() < 0.25) {
+      Particles.spawn(particles, {
+        x: camera.x + Math.random() * cw,
+        y: camera.y - 6 - Math.random() * 30,
+        vx: -8 - Math.random() * 12,
+        vy: 12 + Math.random() * 18,
+        ay: 4,
+        spin: (Math.random() * 2 - 1) * 4,
+        life: 5 + Math.random() * 3,
+        kind: 'leaf',
+        color: Math.random() < 0.5 ? '#558a3c' : '#345f2c',
+      });
+    }
+  }
+
   function updateCamera(dt) {
     if (!player || !level) return;
     const cw = canvas.width, ch = canvas.height;
-    const targetX = player.x - cw / 2 + player.facing * 32;
-    const targetY = player.y - ch * 0.6;
-    camera.x += (targetX - camera.x) * Math.min(1, dt * 6);
-    camera.y += (targetY - camera.y) * Math.min(1, dt * 5);
+    // velocity-based look-ahead — peek further in the direction of motion
+    const lookAhead = Math.max(-40, Math.min(40, player.vx * 0.25)) + player.facing * 18;
+    const targetX = player.x - cw / 2 + lookAhead;
+    // soft vertical follow with downward bias when falling
+    const yBias = player.vy > 80 ? 16 : 0;
+    const targetY = player.y - ch * 0.6 + yBias;
+    camera.x += (targetX - camera.x) * Math.min(1, dt * 5.5);
+    camera.y += (targetY - camera.y) * Math.min(1, dt * 4.5);
     camera.x = Math.max(0, Math.min(level.pixelWidth - cw, camera.x));
     camera.y = Math.max(0, Math.min(level.pixelHeight - ch, camera.y));
   }
@@ -122,8 +325,7 @@ const Game = (() => {
   function updateShake(dt) {
     if (shake.timer > 0) {
       shake.timer -= dt;
-      const t = Math.max(0, shake.timer);
-      const k = shake.intensity * t / Math.max(0.001, shake.timer + dt);
+      const k = shake.intensity * Math.max(0, shake.timer / 0.3);
       shake.x = (Math.random() * 2 - 1) * k;
       shake.y = (Math.random() * 2 - 1) * k;
       if (shake.timer <= 0) { shake.x = 0; shake.y = 0; shake.intensity = 0; }
@@ -134,38 +336,150 @@ const Game = (() => {
 
   function render() {
     if (state === STATE.TITLE) {
-      Renderer.drawTitlePlaceholder(titleAnim);
+      Renderer.drawTitle(titleAnim);
       return;
     }
 
+    // Sky
     Renderer.clear();
 
     if (state === STATE.PLAYING || state === STATE.GAME_OVER) {
-      // Draw world with screen shake offset.
       const cam = { x: camera.x + shake.x, y: camera.y + shake.y };
-      Renderer.drawTilesPlaceholder(level, cam);
+
+      // Parallax behind tiles
+      Renderer.drawParallax(cam, level.pixelWidth);
+
+      // Tiles
+      Renderer.drawTiles(level, cam, elapsed);
+
+      // Pickups (drawn before enemies so flying particles overlay)
+      for (const pk of pickups) Renderer.drawPickup(pk, cam, elapsed);
+
+      // Checkpoints
+      for (const c of checkpoints) Renderer.drawCheckpoint(c, cam, elapsed);
+
+      // Enemies
       Enemies.draw(ctx, enemies, cam);
-      Player.draw(ctx, player, cam);
+
+      // Player
+      Renderer.drawPlayer(player, cam, elapsed);
+
+      // Particles overlay world
       Particles.draw(ctx, particles, cam);
 
+      // Foreground foliage parallax
+      Renderer.drawForeground(cam);
+
+      // Vignette
+      Renderer.drawVignette();
+
+      drawHUD();
+
       if (state === STATE.GAME_OVER) {
-        ctx.fillStyle = 'rgba(0,0,0,0.55)';
+        ctx.fillStyle = 'rgba(8,4,16,0.55)';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = Renderer.PALETTE.uiCream;
-        ctx.font = '8px monospace';
+        ctx.fillStyle = Renderer.PALETTE.relicGold;
+        ctx.font = 'bold 12px monospace';
         ctx.textAlign = 'center';
-        ctx.fillText('YOU FELL', canvas.width / 2, canvas.height / 2 - 6);
+        ctx.fillText('YOUR EMBER FADES', canvas.width / 2, canvas.height / 2 - 6);
         if (gameOverTimer > 0.6 && Math.floor(gameOverTimer * 2) % 2 === 0) {
-          ctx.fillText('PRESS ENTER', canvas.width / 2, canvas.height / 2 + 10);
+          ctx.fillStyle = Renderer.PALETTE.uiCream;
+          ctx.font = '8px monospace';
+          ctx.fillText('PRESS ENTER TO TRY AGAIN', canvas.width / 2, canvas.height / 2 + 12);
         }
       }
     }
+  }
+
+  // Simple HUD: hearts top-left, gem counter top-right, double-jump unlock flash.
+  function drawHUD() {
+    const P = Renderer.PALETTE;
+    // Hearts
+    const totalHearts = Player.TUNING.MAX_HP / 2;  // 3 hearts (each = 2 hp)
+    for (let i = 0; i < totalHearts; i++) {
+      const x = 4 + i * 11;
+      const y = 4;
+      const filled = (player.hp - i * 2);
+      drawHeartIcon(x, y, filled);
+    }
+
+    // Gem counter
+    const x = canvas.width - 38, y = 4;
+    drawGemIcon(x, y);
+    ctx.fillStyle = P.uiCream;
+    ctx.font = 'bold 8px monospace';
+    ctx.textAlign = 'left';
+    const txt = String(player.gems).padStart(2, '0');
+    // shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillText(txt, x + 11, y + 9);
+    ctx.fillStyle = P.uiCream;
+    ctx.fillText(txt, x + 10, y + 8);
+
+    // Relic indicator
+    if (player.hasRelic) {
+      ctx.fillStyle = P.relicGoldHL;
+      const flicker = Math.floor(elapsed * 6) % 2;
+      ctx.fillText('★ RELIC', canvas.width / 2 - 18, y + 8 + flicker);
+    }
+
+    // Double-jump unlock flash
+    if (lastDoubleJumpFlash > 0) {
+      lastDoubleJumpFlash -= 1 / 60;
+      const a = Math.min(1, lastDoubleJumpFlash);
+      ctx.fillStyle = `rgba(244,201,82,${a * 0.85})`;
+      ctx.font = 'bold 8px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('DOUBLE JUMP UNLOCKED', canvas.width / 2, 28);
+    }
+  }
+
+  function drawHeartIcon(x, y, filledHp) {
+    const P = Renderer.PALETTE;
+    // Render a 9x8 heart that shows full / half / empty based on filledHp (0,1,2)
+    const empty = filledHp <= 0;
+    const half  = filledHp === 1;
+    const fillCol = empty ? P.heartDark : P.heartRed;
+    const liteCol = empty ? P.heartDark : P.heartHL;
+
+    // shape (left half always rendered with fillCol; right half conditional)
+    const drawHalf = (ox, half2) => {
+      const c = half2 ? P.heartDark : fillCol;
+      // mini heart half (4x6)
+      ctx.fillStyle = c;
+      ctx.fillRect(x + ox, y + 1, 1, 1);
+      ctx.fillRect(x + ox + 1, y + 1, 1, 1);
+      ctx.fillRect(x + ox - 1, y + 2, 4, 2);
+      ctx.fillRect(x + ox, y + 4, 3, 1);
+      ctx.fillRect(x + ox + 1, y + 5, 2, 1);
+      ctx.fillRect(x + ox + 2, y + 6, 1, 1);
+    };
+    drawHalf(1, false);                   // left
+    drawHalf(5, half);                    // right (ghost if half)
+    // outline shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(x, y + 7, 9, 1);
+    // highlight pixel
+    if (!empty) {
+      ctx.fillStyle = liteCol;
+      ctx.fillRect(x + 2, y + 2, 1, 1);
+    }
+  }
+
+  function drawGemIcon(x, y) {
+    const P = Renderer.PALETTE;
+    Renderer.fr(x + 2, y + 1, 4, 1, P.gemBlue);
+    Renderer.fr(x + 1, y + 2, 6, 2, P.gemBlue);
+    Renderer.fr(x + 2, y + 4, 4, 1, P.gemBlueDark);
+    Renderer.fr(x + 3, y + 5, 2, 1, P.gemBlueDark);
+    Renderer.fr(x + 2, y + 2, 1, 1, P.gemBlueHL);
   }
 
   window.addEventListener('load', init);
 
   return {
     triggerShake,
+    sparkleAt,
     get state() { return state; },
     get camera() { return camera; },
     get level() { return level; },
