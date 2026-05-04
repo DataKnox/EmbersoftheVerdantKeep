@@ -140,9 +140,13 @@ const Game = (() => {
 
     Renderer.clear();
 
-    // (Real rendering gets implemented in later commits)
     if (state === STATE.PLAYING || state === STATE.GAME_OVER) {
-      Player.draw(ctx, player, camera);
+      // Draw world with screen shake offset.
+      const cam = { x: camera.x + shake.x, y: camera.y + shake.y };
+      Renderer.drawTilesPlaceholder(level, cam);
+      Enemies.draw(ctx, enemies, cam);
+      Player.draw(ctx, player, cam);
+      Particles.draw(ctx, particles, cam);
 
       if (state === STATE.GAME_OVER) {
         ctx.fillStyle = 'rgba(0,0,0,0.55)';
