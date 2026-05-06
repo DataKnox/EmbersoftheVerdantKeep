@@ -190,42 +190,42 @@ const Renderer = (() => {
   }
 
   // Procedural spike (no asset; keeps the original chunky look).
+  // Sized for the 128-px tile world.
   function drawSpike(px, py, TS) {
     const P = PALETTE;
-    // 4 individual spikes scaled to a 32-px tile
     for (let i = 0; i < 4; i++) {
-      const sx = px + i * 8;
-      fr(sx + 2, py + 8, 4, 4, P.stoneLight);
-      fr(sx + 2, py + 12, 4, 8, P.stoneHL);
-      fr(sx + 1, py + 20, 6, 8, P.stoneMid);
-      fr(sx + 1, py + 26, 6, 2, P.stoneDark);
+      const sx = px + i * 32;
+      fr(sx + 8, py + 32, 16, 16, P.stoneLight);
+      fr(sx + 8, py + 48, 16, 32, P.stoneHL);
+      fr(sx + 4, py + 80, 24, 32, P.stoneMid);
+      fr(sx + 4, py + 104, 24, 8, P.stoneDark);
     }
-    fr(px, py + 28, TS, 4, P.stoneDark);
+    fr(px, py + 112, TS, 16, P.stoneDark);
   }
 
   function drawTorchFlame(px, py, tx, t) {
     const P = PALETTE;
     const phase = Math.sin(t * 14 + tx) * 0.5 + 0.5;
-    const size = phase > 0.5 ? 4 : 2;
+    const size = phase > 0.5 ? 16 : 8;
     // glow halo
     ctx.fillStyle = P.flameGlow;
-    ctx.fillRect(px + 8, py + 2, 16, 12);
-    ctx.fillRect(px + 6, py + 4, 20, 8);
+    ctx.fillRect(px + 32, py + 8, 64, 48);
+    ctx.fillRect(px + 24, py + 16, 80, 32);
     // outer flame
-    fr(px + 12, py + 8, 8, 8, P.flameDark);
+    fr(px + 48, py + 32, 32, 32, P.flameDark);
     // inner flame
-    fr(px + 14, py + 6 - size, 4, 8 + size, P.flameMid);
+    fr(px + 56, py + 24 - size, 16, 32 + size, P.flameMid);
     // core
-    fr(px + 14, py + 4, 4, 4, P.flameCore);
-    if (phase > 0.6) fr(px + 14, py, 4, 2, P.flameMid);
+    fr(px + 56, py + 16, 16, 16, P.flameCore);
+    if (phase > 0.6) fr(px + 56, py, 16, 8, P.flameMid);
   }
 
   function drawWaterShimmer(px, py, tx, t) {
     const P = PALETTE;
-    const phase = Math.sin(t * 3 + tx * 0.4) * 2;
-    fr(px + 4, py + 6 + phase, 6, 1, P.gemBlueHL);
-    fr(px + 18, py + 12 - phase, 6, 1, P.gemBlueHL);
-    fr(px + 8, py + 22 + phase, 4, 1, P.gemBlue);
+    const phase = Math.sin(t * 3 + tx * 0.4) * 8;
+    fr(px + 16, py + 24 + phase, 24, 4, P.gemBlueHL);
+    fr(px + 72, py + 48 - phase, 24, 4, P.gemBlueHL);
+    fr(px + 32, py + 88 + phase, 16, 4, P.gemBlue);
   }
 
   // Per-animation feet position (fraction of cell height) measured by finding
@@ -275,33 +275,33 @@ const Renderer = (() => {
   // ─── Pickups ──────────────────────────────────────────────────────────────
   function drawPickup(p, camera, t) {
     if (p.collected) return;
-    const bob = Math.sin(t * 3 + p.bobPhase) * 3;
+    const bob = Math.sin(t * 3 + p.bobPhase) * 12;
     const cx = Math.floor(p.x - camera.x);
     const cy = Math.floor(p.y - camera.y + bob);
-    const dw = 32, dh = 32;
+    const dw = 128, dh = 128;
     Assets.drawSprite(ctx, 'pickups', p.type, 0, cx - dw / 2, cy - dh / 2, dw, dh);
   }
 
   function drawCheckpoint(c, camera, t) {
     const x = Math.floor(c.x - camera.x);
     const y = Math.floor(c.y - camera.y);
-    const dw = 32, dh = 48;
+    const dw = 128, dh = 192;
     Assets.drawSprite(ctx, 'pickups', 'checkpoint', 0, x, y, dw, dh);
 
     if (c.activated) {
       // Animated flame on top of the static checkpoint shrine
       const P = PALETTE;
       const phase = Math.sin(t * 14 + c.x) * 0.5 + 0.5;
-      const size = phase > 0.5 ? 4 : 2;
+      const size = phase > 0.5 ? 16 : 8;
       ctx.fillStyle = P.flameGlow;
-      ctx.fillRect(x + 4, y - 4, 24, 16);
-      ctx.fillRect(x + 0, y - 0, 32, 12);
-      fr(x + 12, y - 0, 8, 8, P.flameDark);
-      fr(x + 14, y - 2 - size, 4, 6 + size, P.flameMid);
-      fr(x + 14, y - 4, 4, 4, P.flameCore);
+      ctx.fillRect(x + 16, y - 16, 96, 64);
+      ctx.fillRect(x, y, 128, 48);
+      fr(x + 48, y, 32, 32, P.flameDark);
+      fr(x + 56, y - 8 - size, 16, 24 + size, P.flameMid);
+      fr(x + 56, y - 16, 16, 16, P.flameCore);
       if (c.pulse > 0) {
         ctx.fillStyle = `rgba(255,224,164,${c.pulse * 0.6})`;
-        ctx.fillRect(x - 12, y - 12, 56, 32);
+        ctx.fillRect(x - 48, y - 48, 224, 128);
       }
     }
   }
@@ -322,7 +322,7 @@ const Renderer = (() => {
     // Idle player figure under the title
     const T = Player.TUNING;
     const pX = cw / 2 - T.SPRITE_W / 2;
-    const pY = ch - 96 + Math.floor(Math.sin(t * 2) * 1);
+    const pY = ch - 384 + Math.floor(Math.sin(t * 2) * 4);
     Assets.drawSprite(ctx, 'player', 'idle', 0, pX, pY, T.SPRITE_W, T.SPRITE_H);
 
     if (nearImg) drawTiledHorizontal(nearImg, t * 32, 0, ch);
@@ -332,30 +332,30 @@ const Renderer = (() => {
     const cx = cw / 2;
     // Title plate
     ctx.fillStyle = 'rgba(20,12,32,0.62)';
-    ctx.fillRect(cx - 200, 36, 400, 96);
+    ctx.fillRect(cx - 800, 144, 1600, 384);
     ctx.strokeStyle = PALETTE.relicGold;
-    ctx.lineWidth = 2;
-    ctx.strokeRect(cx - 200 + 1, 37, 398, 94);
+    ctx.lineWidth = 8;
+    ctx.strokeRect(cx - 800 + 4, 148, 1592, 376);
     ctx.strokeStyle = 'rgba(244,201,82,0.35)';
-    ctx.strokeRect(cx - 195 + 1, 42, 388, 84);
+    ctx.strokeRect(cx - 780 + 4, 168, 1552, 336);
 
     ctx.fillStyle = PALETTE.relicGold;
-    ctx.font = 'bold 22px monospace';
+    ctx.font = 'bold 88px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('EMBERS OF THE', cx, 76);
+    ctx.fillText('EMBERS OF THE', cx, 304);
     ctx.fillStyle = PALETTE.relicGoldHL;
-    ctx.font = 'bold 26px monospace';
-    ctx.fillText('VERDANT KEEP', cx, 110);
+    ctx.font = 'bold 104px monospace';
+    ctx.fillText('VERDANT KEEP', cx, 440);
 
     ctx.fillStyle = PALETTE.uiCream;
-    ctx.font = '13px monospace';
+    ctx.font = '52px monospace';
     if (Math.floor(t * 2) % 2 === 0) {
-      ctx.fillText('PRESS  ENTER  TO  BEGIN', cx, 180);
+      ctx.fillText('PRESS  ENTER  TO  BEGIN', cx, 720);
     }
     ctx.fillStyle = 'rgba(244,236,208,0.45)';
-    ctx.font = '11px monospace';
-    ctx.fillText('ARROWS / WASD  MOVE   ·   SPACE  JUMP', cx, ch - 36);
-    ctx.fillText('X / J  ATTACK   ·   M  MUTE', cx, ch - 20);
+    ctx.font = '44px monospace';
+    ctx.fillText('ARROWS / WASD  MOVE   ·   SPACE  JUMP', cx, ch - 144);
+    ctx.fillText('X / J  ATTACK   ·   M  MUTE', cx, ch - 80);
   }
 
   return {

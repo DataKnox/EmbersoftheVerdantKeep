@@ -33,7 +33,7 @@ const Game = (() => {
     ctx.fillStyle = '#0a070e';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = '#f4c952';
-    ctx.font = 'bold 14px monospace';
+    ctx.font = 'bold 56px monospace';
     ctx.textAlign = 'center';
     ctx.fillText('LOADING…', canvas.width / 2, canvas.height / 2);
 
@@ -50,7 +50,7 @@ const Game = (() => {
       requestAnimationFrame(loop);
     }).catch(err => {
       ctx.fillStyle = '#d9433f';
-      ctx.fillText('ASSET LOAD FAILED — see console', canvas.width / 2, canvas.height / 2 + 28);
+      ctx.fillText('ASSET LOAD FAILED — see console', canvas.width / 2, canvas.height / 2 + 112);
       console.error('Asset load failed:', err);
     });
   }
@@ -187,8 +187,8 @@ const Game = (() => {
   function updatePickups(dt) {
     for (const pk of pickups) {
       if (pk.collected) continue;
-      // AABB overlap (pickup as 16x16 around its center)
-      const r = 12;
+      // AABB overlap (pickup as 96x96 around its center, ~75% of 128-px display)
+      const r = 48;
       const px = pk.x - r, py = pk.y - r;
       const pw = r * 2, ph = r * 2;
       if (rectsOverlap(player.x, player.y, player.w, player.h, px, py, pw, ph)) {
@@ -211,7 +211,7 @@ const Game = (() => {
     for (const c of checkpoints) {
       if (c.pulse > 0) c.pulse = Math.max(0, c.pulse - dt * 3);
       if (c.activated) continue;
-      if (rectsOverlap(player.x, player.y, player.w, player.h, c.x - 8, c.y - 8, 32, 48)) {
+      if (rectsOverlap(player.x, player.y, player.w, player.h, c.x - 32, c.y - 32, 128, 192)) {
         c.activated = true;
         c.pulse = 1;
         Audio.play('checkpoint');
@@ -426,11 +426,11 @@ const Game = (() => {
         const t = level.tiles[ty][tx];
         if (t === Level.T.TORCH && Math.random() < 0.18) {
           Particles.spawn(particles, {
-            x: tx * TS + 16 + (Math.random() * 4 - 2),
-            y: ty * TS + 4,
-            vx: (Math.random() * 2 - 1) * 16,
-            vy: -16 - Math.random() * 32,
-            ay: -24,
+            x: tx * TS + 64 + (Math.random() * 16 - 8),
+            y: ty * TS + 16,
+            vx: (Math.random() * 2 - 1) * 64,
+            vy: -64 - Math.random() * 128,
+            ay: -96,
             life: 0.6 + Math.random() * 0.6,
             kind: 'ember',
             color: '#f4b860',
@@ -442,10 +442,10 @@ const Game = (() => {
     if (camera.x < 22 * TS && Math.random() < 0.25) {
       Particles.spawn(particles, {
         x: camera.x + Math.random() * cw,
-        y: camera.y - 12 - Math.random() * 60,
-        vx: -16 - Math.random() * 24,
-        vy: 24 + Math.random() * 36,
-        ay: 8,
+        y: camera.y - 48 - Math.random() * 240,
+        vx: -64 - Math.random() * 96,
+        vy: 96 + Math.random() * 144,
+        ay: 32,
         spin: (Math.random() * 2 - 1) * 4,
         life: 5 + Math.random() * 3,
         kind: 'leaf',
@@ -539,9 +539,17 @@ const Game = (() => {
     }
   }
 
+  // HUD and game-over were authored at 1x for a 480x270 canvas; the world is
+  // now 1920x1080 (4x). Wrap in ctx.scale(4,4) so the original coords map up
+  // without rewriting every fr() position. canvas.width/height referenced
+  // inside the scaled block are divided by 4 to give logical canvas dims.
+  const HUD_SCALE = 4;
+
   function drawGameOver() {
     const P = Renderer.PALETTE;
-    const cw = canvas.width, ch = canvas.height;
+    ctx.save();
+    ctx.scale(HUD_SCALE, HUD_SCALE);
+    const cw = canvas.width / HUD_SCALE, ch = canvas.height / HUD_SCALE;
     ctx.fillStyle = `rgba(8,4,16,${Math.min(0.7, gameOverTimer * 1.6)})`;
     ctx.fillRect(0, 0, cw, ch);
 
@@ -560,11 +568,16 @@ const Game = (() => {
       ctx.fillStyle = P.uiCream;
       ctx.fillText('PRESS ENTER TO TRY AGAIN', cw / 2, ch / 2 + 36);
     }
+    ctx.restore();
   }
 
   // Simple HUD: hearts top-left, gem counter top-right, double-jump unlock flash.
   function drawHUD() {
     const P = Renderer.PALETTE;
+    ctx.save();
+    ctx.scale(HUD_SCALE, HUD_SCALE);
+    const cw = canvas.width / HUD_SCALE, ch = canvas.height / HUD_SCALE;
+
     // Hearts
     const totalHearts = Player.TUNING.MAX_HP / 2;  // 3 hearts (each = 2 hp)
     for (let i = 0; i < totalHearts; i++) {
@@ -575,7 +588,7 @@ const Game = (() => {
     }
 
     // Gem counter
-    const x = canvas.width - 38, y = 4;
+    const x = cw - 38, y = 4;
     drawGemIcon(x, y);
     ctx.fillStyle = P.uiCream;
     ctx.font = 'bold 8px monospace';
@@ -591,7 +604,7 @@ const Game = (() => {
     if (player.hasRelic) {
       const flicker = Math.floor(elapsed * 6) % 2;
       ctx.fillStyle = P.relicGoldHL;
-      ctx.fillText('★', canvas.width / 2 - 4, y + 9 + flicker);
+      ctx.fillText('★', cw / 2 - 4, y + 9 + flicker);
     }
 
     // Double-jump unlock flash
@@ -601,34 +614,34 @@ const Game = (() => {
       ctx.fillStyle = `rgba(244,201,82,${a * 0.85})`;
       ctx.font = 'bold 8px monospace';
       ctx.textAlign = 'center';
-      ctx.fillText('DOUBLE JUMP UNLOCKED', canvas.width / 2, 28);
+      ctx.fillText('DOUBLE JUMP UNLOCKED', cw / 2, 28);
     }
 
     // Relic acquired toast
     if (relicToast > 0) {
       const a = Math.min(1, relicToast / 1.0);
-      const yo = Math.min(1, (4 - relicToast) * 1.2);
       ctx.fillStyle = `rgba(20,12,32,${0.55 * a})`;
-      ctx.fillRect(canvas.width / 2 - 84, 36 - yo * 0, 168, 22);
+      ctx.fillRect(cw / 2 - 84, 36, 168, 22);
       ctx.strokeStyle = `rgba(244,201,82,${a})`;
       ctx.lineWidth = 1;
-      ctx.strokeRect(canvas.width / 2 - 84 + 0.5, 36.5, 167, 21);
+      ctx.strokeRect(cw / 2 - 84 + 0.5, 36.5, 167, 21);
       ctx.fillStyle = `rgba(255,242,176,${a})`;
       ctx.font = 'bold 8px monospace';
       ctx.textAlign = 'center';
-      ctx.fillText('★  THE VERDANT RELIC  ★', canvas.width / 2, 50);
+      ctx.fillText('★  THE VERDANT RELIC  ★', cw / 2, 50);
     }
 
     // Mute indicator toast
     if (muteToast > 0) {
       const a = Math.min(1, muteToast / 0.6);
       ctx.fillStyle = `rgba(20,12,32,${0.6 * a})`;
-      ctx.fillRect(canvas.width / 2 - 36, canvas.height - 22, 72, 14);
+      ctx.fillRect(cw / 2 - 36, ch - 22, 72, 14);
       ctx.fillStyle = `rgba(244,236,208,${a})`;
       ctx.font = 'bold 7px monospace';
       ctx.textAlign = 'center';
-      ctx.fillText(Audio.isMuted() ? 'AUDIO  MUTED' : 'AUDIO  ON', canvas.width / 2, canvas.height - 12);
+      ctx.fillText(Audio.isMuted() ? 'AUDIO  MUTED' : 'AUDIO  ON', cw / 2, ch - 12);
     }
+    ctx.restore();
   }
 
   function drawHeartIcon(x, y, filledHp) {

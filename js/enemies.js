@@ -286,18 +286,18 @@ const Enemies = (() => {
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(ang);
-    // shaft (doubled length 8→16)
+    // shaft
     ctx.fillStyle = P.arrowShaft;
-    ctx.fillRect(-14, -1, 16, 2);
+    ctx.fillRect(-28, -2, 32, 4);
     // fletching
     ctx.fillStyle = P.uiCream;
-    ctx.fillRect(-14, -3, 4, 1);
-    ctx.fillRect(-14,  2, 4, 1);
+    ctx.fillRect(-28, -6, 8, 2);
+    ctx.fillRect(-28,  4, 8, 2);
     // head
     ctx.fillStyle = P.arrowHead;
-    ctx.fillRect( 2, -2, 6, 4);
+    ctx.fillRect( 4, -4, 12, 8);
     ctx.fillStyle = P.stoneHL;
-    ctx.fillRect( 6,  0, 2, 1);
+    ctx.fillRect(12,  0, 4, 2);
     ctx.restore();
   }
 
