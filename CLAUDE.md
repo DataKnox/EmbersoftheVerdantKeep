@@ -63,13 +63,18 @@ because `init` runs on `window load` after asset preload.
 
 | Constant            | Value           |
 |---------------------|-----------------|
-| Internal canvas     | 480 × 270 px    |
-| Tile size           | 32 px           |
+| Internal canvas     | 1920 × 1080 px  |
+| Tile size           | 128 px          |
 | Level grid          | 60 × 24 tiles   |
-| Player body box     | 20 × 32 px      |
-| Player sprite cell  | 256 × 512 px in 1024×1024 sheet (8:1 downscale → 32 × 64 in-game) |
-| Display scale       | 4× via CSS (1920 × 1080) |
+| Player body box     | 80 × 128 px     |
+| Player sprite cell  | 256 × 512 px in 1024×1024 sheet (2:1 downscale → 128 × 256 in-game) |
+| Display scale       | 1× via CSS (canvas displayed 1:1) |
+| HUD scale           | 4× via `ctx.scale(4,4)` (HUD/game-over authored at 1× then transformed) |
 | Fixed timestep      | 60 Hz           |
+
+All pixel/velocity tunables in `PLAYER_TUNING` and `ENEMY_TUNING` are 8×
+the original 16-px-tile values; time-based values (durations, intervals)
+are unchanged so feel stays identical at the new scale.
 
 ## Module roles
 
@@ -94,9 +99,10 @@ because `init` runs on `window load` after asset preload.
 ## Conventions
 
 - Coordinate system: y grows downward; tile (tx, ty) occupies pixels
-  (tx·32, ty·32) to ((tx+1)·32, (ty+1)·32)
+  (tx·128, ty·128) to ((tx+1)·128, (ty+1)·128)
 - Entity body anchor: top-left (e.g., player `x, y` is top-left of the
-  20×32 body box; sprite is offset by `SPRITE_OFFSET_X/Y`)
+  80×128 body box; sprite is offset per-anim via `PLAYER_FEET_REL` so
+  the visible character feet land at body bottom regardless of pose)
 - Pickups stored at center coords; drawing routines offset internally
 - Sprite drawing uses `Assets.drawSprite(name, anim, frame, dx, dy)` which
   reads the source rect from `manifest.json` and calls `ctx.drawImage`
