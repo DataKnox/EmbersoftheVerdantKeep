@@ -9,7 +9,7 @@
 // wider bridge gap (5 tiles wide between planks B and C).
 
 const Level = (() => {
-  const TILE_SIZE = 32;
+  const TILE_SIZE = 128;
   const W = 60;
   const H = 24;
 
@@ -176,7 +176,7 @@ const Level = (() => {
     const raw = getRaw();
     const tiles = [];
     const entities = [];
-    let spawn = { x: 64, y: 480 };
+    let spawn = { x: 256, y: 1920 };
 
     for (let y = 0; y < H; y++) {
       const line = raw[y];
@@ -295,8 +295,8 @@ const Level = (() => {
       if (e.type === 'gem' || e.type === 'heart' || e.type === 'relic') {
         list.push({
           type: e.type,
-          x: e.x, y: e.y - 16,
-          ox: e.x, oy: e.y - 16,
+          x: e.x, y: e.y - 64,
+          ox: e.x, oy: e.y - 64,
           collected: false,
           bobPhase: Math.random() * Math.PI * 2,
         });
@@ -310,7 +310,7 @@ const Level = (() => {
     for (const e of level.entities) {
       if (e.type === 'checkpoint') {
         list.push({
-          x: e.x - 12, y: e.y - 36,
+          x: e.x - 48, y: e.y - 144,
           tx: e.tx, ty: e.ty,
           activated: false,
           pulse: 0,

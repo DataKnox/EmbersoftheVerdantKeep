@@ -4,22 +4,21 @@
 // and a sprite-based draw routine.
 
 const Enemies = (() => {
-  // All pixel/velocity values doubled from the original 16-px-tile world.
+  // All pixel/velocity values 4× the original 16-px-tile world.
   const ENEMY_TUNING = {
-    slime:  { hp: 2, w: 28, h: 20, jumpVy: -360, jumpVx: 120, jumpInterval: 1.6, contactDmg: 1 },
-    archer: { hp: 2, w: 20, h: 32, fireInterval: 2.1, arrowSpeed: 240, range: 440, contactDmg: 1 },
-    wisp:   { hp: 1, w: 20, h: 20, chaseRange: 152, chaseAccel: 140, drag: 0.92, contactDmg: 1 },
+    slime:  { hp: 2, w: 56, h: 40, jumpVy: -720, jumpVx: 240, jumpInterval: 1.6, contactDmg: 1 },
+    archer: { hp: 2, w: 40, h: 64, fireInterval: 2.1, arrowSpeed: 480, range: 880, contactDmg: 1 },
+    wisp:   { hp: 1, w: 40, h: 40, chaseRange: 304, chaseAccel: 280, drag: 0.92, contactDmg: 1 },
   };
 
   // Sprite display rectangles per enemy type — each enemy_sheet cell is
-  // 256×1024 (1:4 aspect), so we render at 32×128 to preserve that ratio.
-  // feetRel is the fraction of cell height where the visible feet sit (measured
-  // from the alpha-keyed PNG); used to align ground-anchored sprites so the
-  // visible feet land at body.y + h instead of dh below it.
+  // 256×1024 (1:4 aspect), so we render at 64×256 to preserve that ratio
+  // (4:1 native downscale). feetRel is the fraction of cell height where the
+  // visible feet sit; used to align ground-anchored sprites.
   const SPRITE = {
-    slime:  { dw: 32, dh: 128, anchor: 'bottom', feetRel: 0.60 },
-    archer: { dw: 32, dh: 128, anchor: 'bottom', feetRel: 0.67 },
-    wisp:   { dw: 32, dh: 128, anchor: 'center' },
+    slime:  { dw: 64, dh: 256, anchor: 'bottom', feetRel: 0.60 },
+    archer: { dw: 64, dh: 256, anchor: 'bottom', feetRel: 0.67 },
+    wisp:   { dw: 64, dh: 256, anchor: 'center' },
   };
 
   function create(type, cx, by) {
@@ -57,8 +56,8 @@ const Enemies = (() => {
     e.knockback = 0.22;
     if (sourceX !== undefined) {
       const dir = (e.x + e.w / 2) < sourceX ? -1 : 1;
-      e.vx = dir * 140;
-      if (e.type !== 'wisp') e.vy = -180;
+      e.vx = dir * 280;
+      if (e.type !== 'wisp') e.vy = -360;
     }
     if (e.hp <= 0) e.dead = true;
     return true;
@@ -81,10 +80,10 @@ const Enemies = (() => {
           e.vx *= 0.92; e.vy *= 0.92;
           e.x += e.vx * dt; e.y += e.vy * dt;
         } else {
-          e.vy += 1200 * dt;
+          e.vy += 2400 * dt;
           e.x += e.vx * dt; e.y += e.vy * dt;
         }
-        if (e.deathTimer > 0.45 || e.y > level.pixelHeight + 64) {
+        if (e.deathTimer > 0.45 || e.y > level.pixelHeight + 256) {
           list.splice(i, 1);
         }
         continue;
@@ -99,16 +98,16 @@ const Enemies = (() => {
   }
 
   function updateSlime(e, dt, level, player) {
-    if (!e.onGround) e.vy += 1400 * dt;
-    if (e.vy > 640) e.vy = 640;
+    if (!e.onGround) e.vy += 2800 * dt;
+    if (e.vy > 1280) e.vy = 1280;
 
     e.jumpTimer -= dt;
     if (e.onGround && e.knockback <= 0 && e.jumpTimer <= 0) {
       const dx = (player.x + player.w / 2) - (e.x + e.w / 2);
       const dist = Math.abs(dx);
-      const dir = dist < 280 ? Math.sign(dx) || 1 : (Math.random() < 0.5 ? -1 : 1);
-      e.vx = dir * 120;
-      e.vy = -360;
+      const dir = dist < 560 ? Math.sign(dx) || 1 : (Math.random() < 0.5 ? -1 : 1);
+      e.vx = dir * 240;
+      e.vy = -720;
       e.facing = dir < 0 ? -1 : 1;
       e.onGround = false;
       e.jumpTimer = 1.0 + Math.random() * 1.2;
@@ -118,7 +117,7 @@ const Enemies = (() => {
 
     const flags = Level.moveAndCollide(level, e, e.vx * dt, e.vy * dt);
     if (flags.onGround) {
-      if (!e.onGround && Math.abs(e.vy) > 200) e.timer = 0.15;
+      if (!e.onGround && Math.abs(e.vy) > 400) e.timer = 0.15;
       e.onGround = true;
       e.vy = 0;
     } else {
@@ -128,18 +127,18 @@ const Enemies = (() => {
   }
 
   function updateArcher(e, dt, level, player) {
-    if (!e.onGround) e.vy += 1400 * dt;
+    if (!e.onGround) e.vy += 2800 * dt;
     const flags = Level.moveAndCollide(level, e, e.vx * dt, e.vy * dt);
     if (flags.onGround) { e.onGround = true; e.vy = 0; }
     if (flags.hitWall)  e.vx *= -0.4;
     if (e.knockback <= 0) e.vx *= 0.85;
 
     const dx = (player.x + player.w / 2) - (e.x + e.w / 2);
-    const dy = (player.y + player.h / 2) - (e.y + 8);
+    const dy = (player.y + player.h / 2) - (e.y + 16);
     e.facing = dx < 0 ? -1 : 1;
     e.aimAngle = Math.atan2(dy, dx);
 
-    const inRange = Math.abs(dx) < ENEMY_TUNING.archer.range && Math.abs(dy) < 200;
+    const inRange = Math.abs(dx) < ENEMY_TUNING.archer.range && Math.abs(dy) < 400;
     if (inRange && e.knockback <= 0) {
       e.shootTimer -= dt;
       e.drawing = e.shootTimer < 0.4 ? 1 : 0;
@@ -148,8 +147,8 @@ const Enemies = (() => {
         const speed = ENEMY_TUNING.archer.arrowSpeed;
         const ang = e.aimAngle;
         e.arrows.push({
-          x: e.x + e.w / 2 + Math.cos(ang) * 12,
-          y: e.y + 8 + Math.sin(ang) * 8,
+          x: e.x + e.w / 2 + Math.cos(ang) * 24,
+          y: e.y + 16 + Math.sin(ang) * 16,
           vx: Math.cos(ang) * speed,
           vy: Math.sin(ang) * speed,
           life: 3.0,
@@ -179,8 +178,8 @@ const Enemies = (() => {
       e.vx += (dx / Math.max(0.1, dist)) * T.chaseAccel * dt;
       e.vy += (dy / Math.max(0.1, dist)) * T.chaseAccel * dt;
     } else {
-      const aoff_x = Math.cos(e.phase * 0.7) * 48;
-      const aoff_y = Math.sin(e.phase * 1.1) * 32;
+      const aoff_x = Math.cos(e.phase * 0.7) * 96;
+      const aoff_y = Math.sin(e.phase * 1.1) * 64;
       const tx = e.ax + aoff_x;
       const ty = e.ay + aoff_y;
       e.vx += (tx - e.x) * 1.2 * dt;
@@ -188,7 +187,7 @@ const Enemies = (() => {
     }
     e.vx *= T.drag;
     e.vy *= T.drag;
-    const maxS = 180;
+    const maxS = 360;
     e.vx = Math.max(-maxS, Math.min(maxS, e.vx));
     e.vy = Math.max(-maxS, Math.min(maxS, e.vy));
     e.x += e.vx * dt;
@@ -203,7 +202,7 @@ const Enemies = (() => {
         if (a.life <= 0) e.arrows.splice(i, 1);
         continue;
       }
-      a.vy += 440 * dt;
+      a.vy += 880 * dt;
       a.x += a.vx * dt;
       a.y += a.vy * dt;
       a.life -= dt;
