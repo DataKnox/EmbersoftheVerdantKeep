@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Embers of the Verdant Keep — Asset Preview</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 32px 48px;
+    background: #0a070e;
+    color: #f4ecd0;
+    font-family: -apple-system, "SF Pro Text", "Helvetica Neue", sans-serif;
+    line-height: 1.5;
+  }
+  h1 {
+    font-size: 28px;
+    margin: 0 0 8px;
+    color: #f4c952;
+    letter-spacing: 1px;
+  }
+  .subtitle {
+    color: rgba(244, 236, 208, 0.55);
+    margin-bottom: 32px;
+    font-size: 13px;
+  }
+  h2 {
+    font-size: 18px;
+    color: #f4c952;
+    border-bottom: 1px solid rgba(244, 201, 82, 0.25);
+    padding-bottom: 6px;
+    margin: 36px 0 18px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 18px;
+  }
+  .grid.wide {
+    grid-template-columns: 1fr;
+  }
+  .card {
+    background: #1a1224;
+    border: 1px solid rgba(140, 90, 220, 0.25);
+    border-radius: 6px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .card img {
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+    max-width: 100%;
+    height: auto;
+    background:
+      linear-gradient(45deg, #2a1838 25%, transparent 25%),
+      linear-gradient(-45deg, #2a1838 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #2a1838 75%),
+      linear-gradient(-45deg, transparent 75%, #2a1838 75%);
+    background-size: 20px 20px;
+    background-position: 0 0, 0 10px, 10px -10px, -10px 0;
+    background-color: #16101e;
+    border: 1px solid rgba(244, 201, 82, 0.15);
+  }
+  .card .label {
+    margin-top: 8px;
+    font-size: 12px;
+    color: rgba(244, 236, 208, 0.75);
+    font-weight: 600;
+  }
+  .card .meta {
+    font-size: 10px;
+    color: rgba(244, 236, 208, 0.4);
+    margin-top: 2px;
+  }
+  /* Backgrounds get full-width row each so the wide aspect renders */
+  .bg-card img {
+    width: 100%;
+    max-height: 360px;
+    object-fit: contain;
+  }
+  /* Palette swatch row */
+  .palette {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 12px;
+  }
+  .palette span {
+    display: block;
+    width: 28px;
+    height: 28px;
+    border: 1px solid rgba(0,0,0,0.5);
+    border-radius: 2px;
+  }
+  .notes {
+    background: rgba(244, 201, 82, 0.08);
+    border-left: 3px solid #f4c952;
+    padding: 12px 16px;
+    margin: 18px 0;
+    font-size: 13px;
+    color: rgba(244, 236, 208, 0.85);
+  }
+  .notes b { color: #f4c952; }
+  code {
+    background: rgba(0,0,0,0.4);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+  }
+</style>
+</head>
+<body>
+<h1>EMBERS OF THE VERDANT KEEP — Asset Preview</h1>
+<div class="subtitle">14 generations · gpt-image-2 high quality · feat/art-upgrade branch</div>
+
+<div class="notes">
+  <b>Known issues to fix during integration:</b><br>
+  · Backgrounds are opaque despite "transparent upper" prompt — checker/black bg is painted in. Will need an alpha-key step (threshold near-white or pure-black, write back to alpha=0).<br>
+  · Backgrounds are <i>not</i> guaranteed tile-seamless even though prompted; expect visible seams when wrapping. Tile-seam fixup may need a manual or generative inpaint pass.<br>
+  · Sprite sheets are 4×2 and 4×1 grids of <i>poses</i>, not animation frames — runtime should keep the existing procedural sub-frame motion (bob/sway).
+</div>
+
+<h2>1 · Player</h2>
+<div class="grid">
+  <div class="card">
+    <img src="sprites/_test_player_hero.png" alt="Hero shot">
+    <div class="label">Hero shot (style anchor)</div>
+    <div class="meta">1024×1024 · used as -i ref for all character generations</div>
+  </div>
+  <div class="card">
+    <img src="sprites/player_sheet.png" alt="Player sheet">
+    <div class="label">Player pose sheet (4×2)</div>
+    <div class="meta">1024×1024 · idle, run, jump, fall · windup, strike, hurt, death</div>
+  </div>
+</div>
+
+<h2>2 · Enemies</h2>
+<div class="grid">
+  <div class="card">
+    <img src="sprites/slime_sheet.png" alt="Slime">
+    <div class="label">Forest slime (4×1)</div>
+    <div class="meta">idle · peak bounce · squash · death</div>
+  </div>
+  <div class="card">
+    <img src="sprites/archer_sheet.png" alt="Archer">
+    <div class="label">Skeleton archer (4×1)</div>
+    <div class="meta">idle · draw · shoot · death</div>
+  </div>
+  <div class="card">
+    <img src="sprites/wisp_sheet.png" alt="Wisp">
+    <div class="label">Floating wisp (4×1)</div>
+    <div class="meta">float · puffed · lunge · dissipate</div>
+  </div>
+</div>
+
+<h2>3 · Pickups + HUD</h2>
+<div class="grid">
+  <div class="card">
+    <img src="sprites/pickups_sheet.png" alt="Pickups">
+    <div class="label">Pickups (2×2)</div>
+    <div class="meta">gem · heart · relic · checkpoint shrine</div>
+  </div>
+  <div class="card">
+    <img src="ui/hud_sheet.png" alt="HUD">
+    <div class="label">HUD elements (2×2)</div>
+    <div class="meta">heart row (full/half/empty) · gem · panel frame · title plate</div>
+  </div>
+</div>
+
+<h2>4 · Tilesets (4×4 grids)</h2>
+<div class="grid">
+  <div class="card">
+    <img src="tiles/forest_tileset.png" alt="Forest tileset">
+    <div class="label">Forest tileset</div>
+    <div class="meta">grass · dirt · stone · trees · vines · mushrooms · flowers · water · edges</div>
+  </div>
+  <div class="card">
+    <img src="tiles/bridge_tileset.png" alt="Bridge tileset">
+    <div class="label">Bridge tileset</div>
+    <div class="meta">planks · stone · rope/iron · broken/collapsed</div>
+  </div>
+  <div class="card">
+    <img src="tiles/castle_tileset.png" alt="Castle tileset">
+    <div class="label">Castle tileset</div>
+    <div class="meta">walls · arches · banners · torch · floors · doors</div>
+  </div>
+</div>
+
+<h2>5 · Forest parallax (3 layers)</h2>
+<div class="grid wide">
+  <div class="card bg-card">
+    <img src="backgrounds/forest_far.png" alt="Forest far">
+    <div class="label">Forest FAR · sky + mountains + moon</div>
+    <div class="meta">2048×1152 · sunset gradient · seam: visible (moon on right)</div>
+  </div>
+  <div class="card bg-card">
+    <img src="backgrounds/forest_mid.png" alt="Forest mid">
+    <div class="label">Forest MID · tree silhouettes</div>
+    <div class="meta">2048×1152 · pure black upper for compositing</div>
+  </div>
+  <div class="card bg-card">
+    <img src="backgrounds/forest_near.png" alt="Forest near">
+    <div class="label">Forest NEAR · foreground ferns</div>
+    <div class="meta">2048×1152 · pure black upper · scrolls fast</div>
+  </div>
+</div>
+
+<h2>6 · Castle parallax (3 layers)</h2>
+<div class="grid wide">
+  <div class="card bg-card">
+    <img src="backgrounds/castle_far.png" alt="Castle far">
+    <div class="label">Castle FAR · stormy sky + distant towers</div>
+    <div class="meta">2048×1152 · lightning · brooding clouds · seam: moon centered</div>
+  </div>
+  <div class="card bg-card">
+    <img src="backgrounds/castle_mid.png" alt="Castle mid">
+    <div class="label">Castle MID · ruined ramparts</div>
+    <div class="meta">2048×1152 · ivy + torches + fallen banner</div>
+  </div>
+  <div class="card bg-card">
+    <img src="backgrounds/castle_near.png" alt="Castle near">
+    <div class="label">Castle NEAR · rubble + bones</div>
+    <div class="meta">2048×1152 · pure black upper · scrolls fast</div>
+  </div>
+</div>
+
+<h2>Palette (extracted from hero shot)</h2>
+<div class="palette">
+  <span style="background:#d0a97c"></span>
+  <span style="background:#a5664a"></span>
+  <span style="background:#a0442e"></span>
+  <span style="background:#6f3b32"></span>
+  <span style="background:#7c2a5f"></span>
+  <span style="background:#6c2758"></span>
+  <span style="background:#5f2645"></span>
+  <span style="background:#472634"></span>
+  <span style="background:#621f63"></span>
+  <span style="background:#571e5c"></span>
+  <span style="background:#4e1c62"></span>
+  <span style="background:#4a1b3e"></span>
+  <span style="background:#401a56"></span>
+  <span style="background:#3d1b2c"></span>
+  <span style="background:#331a39"></span>
+  <span style="background:#2a192e"></span>
+  <span style="background:#3d1345"></span>
+  <span style="background:#361246"></span>
+  <span style="background:#331142"></span>
+  <span style="background:#2e1047"></span>
+  <span style="background:#2d1029"></span>
+  <span style="background:#240f3c"></span>
+  <span style="background:#22101c"></span>
+  <span style="background:#22093d"></span>
+  <span style="background:#20092d"></span>
+  <span style="background:#150b28"></span>
+  <span style="background:#140c17"></span>
+  <span style="background:#100627"></span>
+  <span style="background:#0e0525"></span>
+  <span style="background:#03041d"></span>
+  <span style="background:#0a021f"></span>
+  <span style="background:#03021a"></span>
+</div>
+<div class="meta" style="margin-top:8px;">32 colors · saved to <code>assets/palette.txt</code></div>
+
+</body>
+</html>
