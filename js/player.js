@@ -3,51 +3,55 @@
 //  TUNABLE GAMEPLAY CONSTANTS
 //  All values in pixels and seconds. Game ticks at fixed 60 Hz timestep.
 //  Tweak these and reload — game feel lives here.
+//
+//  Doubled from the original 16-px-tile world to the 32-px-tile world: every
+//  pixel/velocity value is ×2; time-based values (durations, intervals) are
+//  unchanged so feel stays identical at the new scale.
 // =============================================================================
 const PLAYER_TUNING = {
   // Horizontal movement
-  MAX_SPEED:       95,    // px/s — top run speed
-  ACCEL_GROUND:    700,   // px/s² — ground accel from rest
-  ACCEL_AIR:       450,   // px/s² — reduced air control
-  FRICTION_GROUND: 900,   // px/s² — decel when releasing input
-  FRICTION_AIR:    120,   // px/s² — slight drag in air
+  MAX_SPEED:       190,   // px/s — top run speed
+  ACCEL_GROUND:    1400,  // px/s² — ground accel from rest
+  ACCEL_AIR:       900,   // px/s² — reduced air control
+  FRICTION_GROUND: 1800,  // px/s² — decel when releasing input
+  FRICTION_AIR:    240,   // px/s² — slight drag in air
   TURN_BOOST:      1.6,   // multiplier on accel when reversing direction
 
   // Vertical / jump
-  GRAVITY:         750,   // px/s² — downward accel while rising
-  GRAVITY_FALL:    1000,  // px/s² — heavier accel while falling (snappier descent)
-  MAX_FALL:        320,   // px/s — terminal velocity
-  JUMP_VELOCITY:   -240,  // px/s — initial jump impulse
+  GRAVITY:         1500,  // px/s² — downward accel while rising
+  GRAVITY_FALL:    2000,  // px/s² — heavier accel while falling (snappier descent)
+  MAX_FALL:        640,   // px/s — terminal velocity
+  JUMP_VELOCITY:   -480,  // px/s — initial jump impulse
   JUMP_CUT:        0.45,  // velocity multiplier when jump released early
   COYOTE_TIME:     0.10,  // seconds — grace after walking off ledge (~6 frames)
   JUMP_BUFFER:     0.12,  // seconds — early-press grace before landing
-  DOUBLE_JUMP_VEL: -210,  // px/s — air jump impulse
+  DOUBLE_JUMP_VEL: -420,  // px/s — air jump impulse
 
   // Combat
   ATTACK_DURATION: 0.22,  // total swing duration
   ATTACK_ACTIVE_S: 0.04,  // hitbox active window start (windup)
   ATTACK_ACTIVE_E: 0.16,  // hitbox active window end
   ATTACK_COOLDOWN: 0.08,  // recovery before next swing
-  ATTACK_RANGE:    16,    // px — sword reach forward of body
-  ATTACK_HEIGHT:   18,    // px — hitbox height
+  ATTACK_RANGE:    32,    // px — sword reach forward of body
+  ATTACK_HEIGHT:   36,    // px — hitbox height
   ATTACK_DAMAGE:   1,
-  ATTACK_KB_X:     50,    // knockback dealt to enemies
+  ATTACK_KB_X:     100,   // knockback dealt to enemies
 
   // Health / damage
   MAX_HP:          6,     // 3 hearts × 2 half-pips
   INVULN_TIME:     1.0,   // i-frames after taking a hit
   HURT_FLASH_HZ:   12,    // sprite blink rate during invuln
-  KNOCKBACK_X:     130,   // received knockback
-  KNOCKBACK_Y:    -140,
+  KNOCKBACK_X:     260,   // received knockback
+  KNOCKBACK_Y:    -280,
   HURT_LOCK:       0.18,  // input-lock during knockback
 
   // Hitbox / body
-  WIDTH:           10,
-  HEIGHT:          16,
-  SPRITE_W:        16,
-  SPRITE_H:        20,
-  SPRITE_OFFSET_X: -3,    // sprite drawn relative to body top-left
-  SPRITE_OFFSET_Y: -4,
+  WIDTH:           20,
+  HEIGHT:          32,
+  SPRITE_W:        32,
+  SPRITE_H:        64,    // 1:2 cell aspect from the player_sheet (256×512 cells)
+  SPRITE_OFFSET_X: -6,    // sprite drawn relative to body top-left (centered)
+  SPRITE_OFFSET_Y: -32,   // sprite top is one tile above body top; feet align with body bottom
 
   // Visual
   RUN_FRAME_TIME:  0.08,
@@ -252,7 +256,7 @@ const Player = (() => {
     // Stash last safe ground position (for pit respawn) — only on landing on solid tile.
     if (flags.onGround) {
       p.respawnX = p.x;
-      p.respawnY = p.y - 8;
+      p.respawnY = p.y - 16;
     }
 
     // ── Pit / hazard handling
@@ -263,7 +267,7 @@ const Player = (() => {
     // Falling out the bottom of the level → take damage, respawn at last
     // safe ground only if still alive. If the fall kills, leave them dead so
     // game.js transitions to GAME_OVER.
-    if (p.y > level.pixelHeight + 32) {
+    if (p.y > level.pixelHeight + 64) {
       damage(p, 1, p.x + p.w / 2);
       if (p.hp > 0) respawn(p);
     }
@@ -275,7 +279,7 @@ const Player = (() => {
     const phase = T.ATTACK_DURATION - p.attackTimer; // 0..DURATION
     if (phase < T.ATTACK_ACTIVE_S || phase > T.ATTACK_ACTIVE_E) return null;
     const hx = (p.facing > 0) ? (p.x + p.w) : (p.x - T.ATTACK_RANGE);
-    const hy = p.y - 2;
+    const hy = p.y - 4;
     return { x: hx, y: hy, w: T.ATTACK_RANGE, h: T.ATTACK_HEIGHT };
   }
 

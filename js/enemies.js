@@ -1,17 +1,28 @@
 // enemies.js — slime, skeleton archer, wisp.
 // Each carries its own state + AI. Combat lives in game.js (it owns the
 // player + particles + audio dispatch). Enemies expose damage(), hitbox(),
-// and a per-type drawXxx routine.
+// and a sprite-based draw routine.
 
 const Enemies = (() => {
+  // All pixel/velocity values doubled from the original 16-px-tile world.
   const ENEMY_TUNING = {
-    slime: { hp: 2, w: 14, h: 10, jumpVy: -180, jumpVx: 60, jumpInterval: 1.6, contactDmg: 1 },
-    archer:{ hp: 2, w: 10, h: 16, fireInterval: 2.1, arrowSpeed: 120, range: 220, contactDmg: 1 },
-    wisp:  { hp: 1, w: 10, h: 10, chaseRange: 76, chaseAccel: 70, drag: 0.92, contactDmg: 1 },
+    slime:  { hp: 2, w: 28, h: 20, jumpVy: -360, jumpVx: 120, jumpInterval: 1.6, contactDmg: 1 },
+    archer: { hp: 2, w: 20, h: 32, fireInterval: 2.1, arrowSpeed: 240, range: 440, contactDmg: 1 },
+    wisp:   { hp: 1, w: 20, h: 20, chaseRange: 152, chaseAccel: 140, drag: 0.92, contactDmg: 1 },
+  };
+
+  // Sprite display rectangles per enemy type — each enemy_sheet cell is
+  // 256×1024 (1:4 aspect), so we render at 32×128 to preserve that ratio.
+  // feetRel is the fraction of cell height where the visible feet sit (measured
+  // from the alpha-keyed PNG); used to align ground-anchored sprites so the
+  // visible feet land at body.y + h instead of dh below it.
+  const SPRITE = {
+    slime:  { dw: 32, dh: 128, anchor: 'bottom', feetRel: 0.60 },
+    archer: { dw: 32, dh: 128, anchor: 'bottom', feetRel: 0.67 },
+    wisp:   { dw: 32, dh: 128, anchor: 'center' },
   };
 
   function create(type, cx, by) {
-    // cx,by = bottom-center spawn point (as written in level data)
     const t = ENEMY_TUNING[type] || ENEMY_TUNING.slime;
     const x = cx - t.w / 2;
     const y = by - t.h;
@@ -24,13 +35,13 @@ const Enemies = (() => {
       maxHp: t.hp,
       facing: -1,
       onGround: false,
-      flash: 0,                 // hit-flash timer (sprite goes white)
-      hurt: 0,                  // post-hit recovery
-      knockback: 0,             // remaining knockback time
+      flash: 0,
+      hurt: 0,
+      knockback: 0,
       dead: false,
       animTime: 0,
       timer: 0,
-      ax: x, ay: y,             // anchor for hover/return
+      ax: x, ay: y,
     };
     if (type === 'slime')   return { ...base, jumpTimer: 0.4 + Math.random() };
     if (type === 'archer')  return { ...base, shootTimer: 0.8 + Math.random(), aimAngle: 0, drawing: 0, arrows: [] };
@@ -46,14 +57,13 @@ const Enemies = (() => {
     e.knockback = 0.22;
     if (sourceX !== undefined) {
       const dir = (e.x + e.w / 2) < sourceX ? -1 : 1;
-      e.vx = dir * 70;
-      if (e.type !== 'wisp') e.vy = -90;  // slime/archer pop up; wisp just floats
+      e.vx = dir * 140;
+      if (e.type !== 'wisp') e.vy = -180;
     }
     if (e.hp <= 0) e.dead = true;
     return true;
   }
 
-  // AABB hitbox (for collision tests)
   function hitbox(e) { return { x: e.x, y: e.y, w: e.w, h: e.h }; }
 
   // ─── Update ───────────────────────────────────────────────────────────────
@@ -66,16 +76,15 @@ const Enemies = (() => {
       if (e.knockback > 0) e.knockback -= dt;
 
       if (e.dead) {
-        // Death tumble — gravity for ground enemies, gentle fade for wisps.
         e.deathTimer = (e.deathTimer || 0) + dt;
         if (e.type === 'wisp') {
           e.vx *= 0.92; e.vy *= 0.92;
           e.x += e.vx * dt; e.y += e.vy * dt;
         } else {
-          e.vy += 600 * dt;
+          e.vy += 1200 * dt;
           e.x += e.vx * dt; e.y += e.vy * dt;
         }
-        if (e.deathTimer > 0.45 || e.y > level.pixelHeight + 32) {
+        if (e.deathTimer > 0.45 || e.y > level.pixelHeight + 64) {
           list.splice(i, 1);
         }
         continue;
@@ -85,35 +94,31 @@ const Enemies = (() => {
       if (e.type === 'archer') updateArcher(e, dt, level, player);
       if (e.type === 'wisp')   updateWisp(e, dt, level, player);
 
-      // Update any owned projectiles
       if (e.arrows) updateArrows(e, dt, level);
     }
   }
 
   function updateSlime(e, dt, level, player) {
-    // gravity
-    if (!e.onGround) e.vy += 700 * dt;
-    if (e.vy > 320) e.vy = 320;
+    if (!e.onGround) e.vy += 1400 * dt;
+    if (e.vy > 640) e.vy = 640;
 
-    // jump cadence
     e.jumpTimer -= dt;
     if (e.onGround && e.knockback <= 0 && e.jumpTimer <= 0) {
       const dx = (player.x + player.w / 2) - (e.x + e.w / 2);
       const dist = Math.abs(dx);
-      const dir = dist < 140 ? Math.sign(dx) || 1 : (Math.random() < 0.5 ? -1 : 1);
-      e.vx = dir * 60;
-      e.vy = -180;
+      const dir = dist < 280 ? Math.sign(dx) || 1 : (Math.random() < 0.5 ? -1 : 1);
+      e.vx = dir * 120;
+      e.vy = -360;
       e.facing = dir < 0 ? -1 : 1;
       e.onGround = false;
       e.jumpTimer = 1.0 + Math.random() * 1.2;
       e.timer = 0;
     }
-    // friction on the ground
     if (e.onGround && e.knockback <= 0) e.vx *= 0.82;
 
     const flags = Level.moveAndCollide(level, e, e.vx * dt, e.vy * dt);
     if (flags.onGround) {
-      if (!e.onGround && Math.abs(e.vy) > 100) e.timer = 0.15; // landing pause
+      if (!e.onGround && Math.abs(e.vy) > 200) e.timer = 0.15;
       e.onGround = true;
       e.vy = 0;
     } else {
@@ -123,33 +128,28 @@ const Enemies = (() => {
   }
 
   function updateArcher(e, dt, level, player) {
-    // gravity / fall
-    if (!e.onGround) e.vy += 700 * dt;
+    if (!e.onGround) e.vy += 1400 * dt;
     const flags = Level.moveAndCollide(level, e, e.vx * dt, e.vy * dt);
     if (flags.onGround) { e.onGround = true; e.vy = 0; }
     if (flags.hitWall)  e.vx *= -0.4;
     if (e.knockback <= 0) e.vx *= 0.85;
 
-    // face player
     const dx = (player.x + player.w / 2) - (e.x + e.w / 2);
-    const dy = (player.y + player.h / 2) - (e.y + 4);
+    const dy = (player.y + player.h / 2) - (e.y + 8);
     e.facing = dx < 0 ? -1 : 1;
     e.aimAngle = Math.atan2(dy, dx);
 
-    // shoot pacing
-    const inRange = Math.abs(dx) < ENEMY_TUNING.archer.range && Math.abs(dy) < 100;
+    const inRange = Math.abs(dx) < ENEMY_TUNING.archer.range && Math.abs(dy) < 200;
     if (inRange && e.knockback <= 0) {
       e.shootTimer -= dt;
-      // drawing animation in last 0.4s before fire
-      const drawAt = ENEMY_TUNING.archer.fireInterval - 0.4;
       e.drawing = e.shootTimer < 0.4 ? 1 : 0;
 
       if (e.shootTimer <= 0) {
         const speed = ENEMY_TUNING.archer.arrowSpeed;
         const ang = e.aimAngle;
         e.arrows.push({
-          x: e.x + e.w / 2 + Math.cos(ang) * 6,
-          y: e.y + 4 + Math.sin(ang) * 4,
+          x: e.x + e.w / 2 + Math.cos(ang) * 12,
+          y: e.y + 8 + Math.sin(ang) * 8,
           vx: Math.cos(ang) * speed,
           vy: Math.sin(ang) * speed,
           life: 3.0,
@@ -179,9 +179,8 @@ const Enemies = (() => {
       e.vx += (dx / Math.max(0.1, dist)) * T.chaseAccel * dt;
       e.vy += (dy / Math.max(0.1, dist)) * T.chaseAccel * dt;
     } else {
-      // gentle return to anchor with sinusoidal hover
-      const aoff_x = Math.cos(e.phase * 0.7) * 24;
-      const aoff_y = Math.sin(e.phase * 1.1) * 16;
+      const aoff_x = Math.cos(e.phase * 0.7) * 48;
+      const aoff_y = Math.sin(e.phase * 1.1) * 32;
       const tx = e.ax + aoff_x;
       const ty = e.ay + aoff_y;
       e.vx += (tx - e.x) * 1.2 * dt;
@@ -189,8 +188,7 @@ const Enemies = (() => {
     }
     e.vx *= T.drag;
     e.vy *= T.drag;
-    // clamp
-    const maxS = 90;
+    const maxS = 180;
     e.vx = Math.max(-maxS, Math.min(maxS, e.vx));
     e.vy = Math.max(-maxS, Math.min(maxS, e.vy));
     e.x += e.vx * dt;
@@ -205,7 +203,7 @@ const Enemies = (() => {
         if (a.life <= 0) e.arrows.splice(i, 1);
         continue;
       }
-      a.vy += 220 * dt;
+      a.vy += 440 * dt;
       a.x += a.vx * dt;
       a.y += a.vy * dt;
       a.life -= dt;
@@ -221,184 +219,62 @@ const Enemies = (() => {
   }
 
   // ─── Drawing ──────────────────────────────────────────────────────────────
+  function pickAnim(e) {
+    if (e.type === 'slime') {
+      if (e.dead)                            return 'death';
+      if (!e.onGround && e.vy < -80)         return 'bounce';
+      if (!e.onGround && e.vy > 120)         return 'squash';
+      if (e.timer > 0)                       return 'squash';
+      return 'idle';
+    }
+    if (e.type === 'archer') {
+      if (e.dead)                            return 'death';
+      if (e.shootTimer !== undefined && e.shootTimer < 0.08) return 'shoot';
+      if (e.drawing > 0)                     return 'draw';
+      return 'idle';
+    }
+    if (e.type === 'wisp') {
+      if (e.dead)                            return 'dissipate';
+      if (e.knockback > 0)                   return 'puffed';
+      if (Math.hypot(e.vx, e.vy) > 90)       return 'lunge';
+      return 'float';
+    }
+    return 'idle';
+  }
+
   function draw(ctx, list, camera) {
     for (const e of list) {
-      if (e.type === 'slime')  drawSlime(ctx, e, camera);
-      if (e.type === 'archer') drawArcher(ctx, e, camera);
-      if (e.type === 'wisp')   drawWisp(ctx, e, camera);
+      drawEnemy(ctx, e, camera);
       if (e.arrows) for (const a of e.arrows) drawArrow(ctx, a, camera);
     }
   }
 
-  function applyFlash(ctx) {
-    ctx.fillStyle = '#ffffff';
-    return true;
-  }
-
-  function drawSlime(ctx, e, camera) {
-    const P = Renderer.PALETTE;
-    const x = Math.floor(e.x - camera.x);
-    const y = Math.floor(e.y - camera.y);
-    const flash = e.flash > 0;
-
-    // squash / stretch
-    let sw = e.w, sh = e.h;
-    let yo = 0;
-    if (e.dead) {
-      // splatted
-      sw = e.w + 4; sh = 4; yo = e.h - 4;
-    } else if (!e.onGround) {
-      if (e.vy < -40)      { sw = e.w - 2; sh = e.h + 3; yo = -1; }    // stretched up
-      else if (e.vy > 60)  { sw = e.w - 1; sh = e.h + 2; yo = -1; }    // stretched down
-    } else if (e.timer > 0) {
-      sw = e.w + 3; sh = Math.max(4, e.h - 2); yo = e.h - sh; // landing squash
+  function drawEnemy(ctx, e, camera) {
+    const spec = SPRITE[e.type];
+    if (!spec) return;
+    const sx = Math.floor(e.x - camera.x);
+    const sy = Math.floor(e.y - camera.y);
+    const dw = spec.dw, dh = spec.dh;
+    let dx, dy;
+    if (spec.anchor === 'center') {
+      dx = sx + (e.w - dw) / 2;
+      dy = sy + (e.h - dh) / 2;
+    } else { // bottom — feet land at body.y + h via feetRel
+      dx = sx + (e.w - dw) / 2;
+      dy = sy + e.h - dh * (spec.feetRel || 1.0);
     }
-    const dx = x + Math.floor((e.w - sw) / 2);
-    const dy = y + yo;
+    const anim = pickAnim(e);
+    Assets.drawSprite(ctx, e.type, anim, 0, dx, dy, dw, dh, e.facing < 0);
 
-    const body  = flash ? '#ffffff' : P.slimeMid;
-    const dark  = flash ? '#ffffff' : P.slimeDark;
-    const light = flash ? '#ffffff' : P.slimeLight;
-    const hl    = flash ? '#ffffff' : P.slimeHL;
-
-    // body: rounded rect
-    Renderer.fr(dx + 1, dy + 1, sw - 2, sh - 2, body);
-    Renderer.fr(dx + 2, dy, sw - 4, 1, body);
-    Renderer.fr(dx + 2, dy + sh - 1, sw - 4, 1, body);
-    Renderer.fr(dx, dy + 2, 1, sh - 4, body);
-    Renderer.fr(dx + sw - 1, dy + 2, 1, sh - 4, body);
-    // shaded belly
-    Renderer.fr(dx + 1, dy + sh - 2, sw - 2, 1, dark);
-    Renderer.fr(dx + 2, dy + sh - 1, sw - 4, 1, dark);
-    // top highlight droplet
-    Renderer.fr(dx + 3, dy + 1, 3, 1, light);
-    Renderer.fr(dx + 3, dy + 2, 1, 1, hl);
-    Renderer.fr(dx + 4, dy + 2, 1, 1, hl);
-    if (!e.dead) {
-      // eyes
-      const eyeY = dy + Math.floor(sh / 2) - 1;
-      Renderer.fr(dx + 4, eyeY, 1, 2, P.uiDark);
-      Renderer.fr(dx + sw - 5, eyeY, 1, 2, P.uiDark);
-      // tiny pupils glint
-      if (!flash) {
-        Renderer.fr(dx + 4, eyeY, 1, 1, '#ffffff');
-        Renderer.fr(dx + sw - 5, eyeY, 1, 1, '#ffffff');
-      }
+    // Hit flash — additive white wash over the sprite bounds while flashing
+    if (e.flash > 0 && !e.dead) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = `rgba(255,255,255,${(e.flash / 0.12) * 0.5})`;
+      // Approximate sprite bounds (whole display rect — most is transparent so fine)
+      ctx.fillRect(dx | 0, dy | 0, dw, dh);
+      ctx.restore();
     }
-  }
-
-  function drawArcher(ctx, e, camera) {
-    const P = Renderer.PALETTE;
-    const x = Math.floor(e.x - camera.x);
-    const y = Math.floor(e.y - camera.y);
-    const flash = e.flash > 0;
-    const bone  = flash ? '#ffffff' : P.skeleBone;
-    const boneS = flash ? '#ffffff' : P.skeleBoneShadow;
-    const cloth = flash ? '#ffffff' : P.skeleCloth;
-    const wood  = flash ? '#ffffff' : P.barkLight;
-
-    ctx.save();
-    if (e.facing < 0) {
-      ctx.translate(x + e.w, y);
-      ctx.scale(-1, 1);
-    } else {
-      ctx.translate(x, y);
-    }
-    // skull (rows 0-4)
-    Renderer.fr(2, 0, 6, 1, bone);
-    Renderer.fr(1, 1, 8, 4, bone);
-    Renderer.fr(1, 2, 1, 1, boneS);
-    Renderer.fr(8, 2, 1, 1, boneS);
-    // eye sockets
-    Renderer.fr(2, 2, 2, 2, P.uiDark);
-    Renderer.fr(6, 2, 2, 2, P.uiDark);
-    if (!flash) {
-      // glowing pupils
-      Renderer.fr(3, 2, 1, 1, P.flameMid);
-      Renderer.fr(7, 2, 1, 1, P.flameMid);
-    }
-    // jaw line
-    Renderer.fr(2, 4, 6, 1, boneS);
-    Renderer.fr(3, 5, 1, 1, P.uiDark);
-    Renderer.fr(5, 5, 1, 1, P.uiDark);
-    // shoulders cloth
-    Renderer.fr(1, 6, 8, 1, cloth);
-    Renderer.fr(0, 7, 10, 1, cloth);
-    // ribcage
-    Renderer.fr(1, 7, 8, 5, cloth);
-    Renderer.fr(3, 7, 1, 5, bone);
-    Renderer.fr(6, 7, 1, 5, bone);
-    Renderer.fr(2, 8, 1, 1, bone);
-    Renderer.fr(7, 8, 1, 1, bone);
-    Renderer.fr(2, 10, 1, 1, bone);
-    Renderer.fr(7, 10, 1, 1, bone);
-    // pelvis
-    Renderer.fr(2, 12, 6, 1, bone);
-    Renderer.fr(2, 13, 6, 1, boneS);
-    // legs
-    Renderer.fr(3, 14, 1, 2, bone);
-    Renderer.fr(6, 14, 1, 2, bone);
-    Renderer.fr(2, 16, 2, 1, boneS);
-    Renderer.fr(6, 16, 2, 1, boneS);
-    // bow + drawing motion
-    drawBow(e, flash, wood, bone);
-    ctx.restore();
-  }
-
-  function drawBow(e, flash, wood, bone) {
-    const draw = e.drawing > 0;
-    // bow held in front (mirror of facing already applied via ctx.scale)
-    // bow rests roughly at (10..11, 6..14) when facing right
-    Renderer.fr(10, 5, 1, 1, wood);
-    Renderer.fr(11, 5, 1, 1, wood);
-    Renderer.fr(11, 6, 1, 1, wood);
-    Renderer.fr(11, 7, 1, 1, wood);
-    Renderer.fr(11, 8, 1, 1, wood);
-    Renderer.fr(11, 9, 1, 1, wood);
-    Renderer.fr(11, 10, 1, 1, wood);
-    Renderer.fr(11, 11, 1, 1, wood);
-    Renderer.fr(11, 12, 1, 1, wood);
-    Renderer.fr(11, 13, 1, 1, wood);
-    Renderer.fr(10, 13, 1, 1, wood);
-    // string
-    const sx = draw ? 8 : 10;
-    Renderer.fr(sx, 5, 1, 9, flash ? '#ffffff' : Renderer.PALETTE.uiCream);
-    if (draw) {
-      // arrow drawn back
-      Renderer.fr(sx, 9, 5, 1, flash ? '#ffffff' : Renderer.PALETTE.arrowShaft);
-      Renderer.fr(sx + 5, 8, 2, 3, flash ? '#ffffff' : Renderer.PALETTE.arrowHead);
-    }
-  }
-
-  function drawWisp(ctx, e, camera) {
-    const P = Renderer.PALETTE;
-    const cx = Math.floor(e.x + e.w / 2 - camera.x);
-    const cy = Math.floor(e.y + e.h / 2 - camera.y);
-    const pulse = Math.sin(e.phase * 6) * 0.5 + 0.5;
-    const flash = e.flash > 0;
-
-    // wide soft halos (with alpha)
-    ctx.fillStyle = 'rgba(122,184,224,0.16)';
-    ctx.fillRect(cx - 8, cy - 8, 16, 16);
-    ctx.fillStyle = 'rgba(192,232,255,0.20)';
-    ctx.fillRect(cx - 5, cy - 5, 10, 10);
-    ctx.fillStyle = 'rgba(255,255,255,0.30)';
-    ctx.fillRect(cx - 3, cy - 3, 6, 6);
-
-    const dark  = flash ? '#ffffff' : P.wispDark;
-    const mid   = flash ? '#ffffff' : P.wispMid;
-    const core  = flash ? '#ffffff' : P.wispCore;
-
-    Renderer.fr(cx - 3, cy - 3, 6, 6, dark);
-    Renderer.fr(cx - 2, cy - 2, 4, 4, mid);
-    const rs = 1 + Math.floor(pulse * 1.5);
-    Renderer.fr(cx - rs, cy - rs, rs * 2, rs * 2, core);
-    Renderer.fr(cx, cy, 1, 1, '#ffffff');
-
-    // trailing tendrils
-    Renderer.fr(cx - 5, cy - 1, 1, 1, mid);
-    Renderer.fr(cx + 4, cy + 1, 1, 1, mid);
-    Renderer.fr(cx - 1, cy - 5, 1, 1, mid);
   }
 
   function drawArrow(ctx, a, camera) {
@@ -411,18 +287,18 @@ const Enemies = (() => {
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(ang);
-    // shaft
+    // shaft (doubled length 8→16)
     ctx.fillStyle = P.arrowShaft;
-    ctx.fillRect(-7, -1, 8, 1);
+    ctx.fillRect(-14, -1, 16, 2);
     // fletching
     ctx.fillStyle = P.uiCream;
-    ctx.fillRect(-7, -2, 2, 1);
-    ctx.fillRect(-7,  1, 2, 1);
+    ctx.fillRect(-14, -3, 4, 1);
+    ctx.fillRect(-14,  2, 4, 1);
     // head
     ctx.fillStyle = P.arrowHead;
-    ctx.fillRect( 1, -1, 3, 2);
+    ctx.fillRect( 2, -2, 6, 4);
     ctx.fillStyle = P.stoneHL;
-    ctx.fillRect( 3,  0, 1, 1);
+    ctx.fillRect( 6,  0, 2, 1);
     ctx.restore();
   }
 

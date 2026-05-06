@@ -9,7 +9,7 @@
 // wider bridge gap (5 tiles wide between planks B and C).
 
 const Level = (() => {
-  const TILE_SIZE = 16;
+  const TILE_SIZE = 32;
   const W = 60;
   const H = 24;
 
@@ -34,6 +34,24 @@ const Level = (() => {
   // Solid tiles for AABB collision
   const SOLID = new Set([T.GRASS, T.DIRT, T.BRIDGE, T.STONE, T.CASTLE_TOP]);
   const HAZARD = new Set([T.SPIKE]);
+
+  // Map each tile id to its tileset + cell name in assets/manifest.json.
+  // null = drawn procedurally by Renderer (e.g. SPIKE, EMPTY).
+  const TILE_NAMES = {
+    [T.GRASS]:      ['forest', 'grass'],
+    [T.DIRT]:       ['forest', 'dirt'],
+    [T.BRIDGE]:     ['bridge', 'plank'],
+    [T.STONE]:      ['castle', 'wall'],
+    [T.STONE_BG]:   ['castle', 'wall_cracked'],
+    [T.SPIKE]:      null,
+    [T.TREE]:       ['forest', 'leaves'],
+    [T.FOLIAGE]:    ['forest', 'fern'],
+    [T.TORCH]:      ['castle', 'torch'],
+    [T.BANNER]:     ['castle', 'banner'],
+    [T.WATER]:      ['forest', 'water'],
+    [T.PILLAR]:     ['castle', 'pillar'],
+    [T.CASTLE_TOP]: ['castle', 'battlement'],
+  };
 
   // Char -> tile mapping for grid parser.
   const CHAR_TO_TILE = {
@@ -158,7 +176,7 @@ const Level = (() => {
     const raw = getRaw();
     const tiles = [];
     const entities = [];
-    let spawn = { x: 32, y: 240 };
+    let spawn = { x: 64, y: 480 };
 
     for (let y = 0; y < H; y++) {
       const line = raw[y];
@@ -173,7 +191,7 @@ const Level = (() => {
           const px = x * TILE_SIZE + TILE_SIZE / 2;
           const py = y * TILE_SIZE + TILE_SIZE;
           if (type === 'spawn') {
-            spawn = { x: px - 5, y: py - 16 };
+            spawn = { x: px - Player.TUNING.WIDTH / 2, y: py - Player.TUNING.HEIGHT };
           } else {
             entities.push({ type, x: px, y: py, tx: x, ty: y });
           }
@@ -277,8 +295,8 @@ const Level = (() => {
       if (e.type === 'gem' || e.type === 'heart' || e.type === 'relic') {
         list.push({
           type: e.type,
-          x: e.x, y: e.y - 8,
-          ox: e.x, oy: e.y - 8,
+          x: e.x, y: e.y - 16,
+          ox: e.x, oy: e.y - 16,
           collected: false,
           bobPhase: Math.random() * Math.PI * 2,
         });
@@ -292,7 +310,7 @@ const Level = (() => {
     for (const e of level.entities) {
       if (e.type === 'checkpoint') {
         list.push({
-          x: e.x - 6, y: e.y - 18,
+          x: e.x - 12, y: e.y - 36,
           tx: e.tx, ty: e.ty,
           activated: false,
           pulse: 0,
@@ -303,7 +321,7 @@ const Level = (() => {
   }
 
   return {
-    TILE_SIZE, W, H, T, SOLID, HAZARD,
+    TILE_SIZE, W, H, T, SOLID, HAZARD, TILE_NAMES,
     create, getRaw,
     getTile, isSolidTile, isSolidAt, isHazardTile,
     moveAndCollide,

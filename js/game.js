@@ -29,16 +29,30 @@ const Game = (() => {
     ctx = canvas.getContext('2d', { alpha: false });
     ctx.imageSmoothingEnabled = false;
 
-    Renderer.init(canvas);
-    Audio.init();
-    Input.init();
-    Renderer.preloadSprites();
+    // Loading screen during asset preload
+    ctx.fillStyle = '#0a070e';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#f4c952';
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('LOADING…', canvas.width / 2, canvas.height / 2);
 
-    const tip = document.getElementById('tip');
-    tip.classList.add('show');
-    setTimeout(() => tip.classList.remove('show'), 5000);
+    Assets.init().then(() => {
+      Renderer.init(canvas);
+      Audio.init();
+      Input.init();
+      Renderer.preloadSprites();
 
-    requestAnimationFrame(loop);
+      const tip = document.getElementById('tip');
+      tip.classList.add('show');
+      setTimeout(() => tip.classList.remove('show'), 5000);
+
+      requestAnimationFrame(loop);
+    }).catch(err => {
+      ctx.fillStyle = '#d9433f';
+      ctx.fillText('ASSET LOAD FAILED — see console', canvas.width / 2, canvas.height / 2 + 28);
+      console.error('Asset load failed:', err);
+    });
   }
 
   function reset() {
@@ -173,8 +187,8 @@ const Game = (() => {
   function updatePickups(dt) {
     for (const pk of pickups) {
       if (pk.collected) continue;
-      // AABB overlap (pickup as 8x8 around its center)
-      const r = 6;
+      // AABB overlap (pickup as 16x16 around its center)
+      const r = 12;
       const px = pk.x - r, py = pk.y - r;
       const pw = r * 2, ph = r * 2;
       if (rectsOverlap(player.x, player.y, player.w, player.h, px, py, pw, ph)) {
@@ -197,7 +211,7 @@ const Game = (() => {
     for (const c of checkpoints) {
       if (c.pulse > 0) c.pulse = Math.max(0, c.pulse - dt * 3);
       if (c.activated) continue;
-      if (rectsOverlap(player.x, player.y, player.w, player.h, c.x - 4, c.y - 4, 16, 24)) {
+      if (rectsOverlap(player.x, player.y, player.w, player.h, c.x - 8, c.y - 8, 32, 48)) {
         c.activated = true;
         c.pulse = 1;
         Audio.play('checkpoint');
@@ -412,11 +426,11 @@ const Game = (() => {
         const t = level.tiles[ty][tx];
         if (t === Level.T.TORCH && Math.random() < 0.18) {
           Particles.spawn(particles, {
-            x: tx * TS + 8 + (Math.random() * 2 - 1),
-            y: ty * TS + 2,
-            vx: (Math.random() * 2 - 1) * 8,
-            vy: -8 - Math.random() * 16,
-            ay: -12,
+            x: tx * TS + 16 + (Math.random() * 4 - 2),
+            y: ty * TS + 4,
+            vx: (Math.random() * 2 - 1) * 16,
+            vy: -16 - Math.random() * 32,
+            ay: -24,
             life: 0.6 + Math.random() * 0.6,
             kind: 'ember',
             color: '#f4b860',
@@ -428,10 +442,10 @@ const Game = (() => {
     if (camera.x < 22 * TS && Math.random() < 0.25) {
       Particles.spawn(particles, {
         x: camera.x + Math.random() * cw,
-        y: camera.y - 6 - Math.random() * 30,
-        vx: -8 - Math.random() * 12,
-        vy: 12 + Math.random() * 18,
-        ay: 4,
+        y: camera.y - 12 - Math.random() * 60,
+        vx: -16 - Math.random() * 24,
+        vy: 24 + Math.random() * 36,
+        ay: 8,
         spin: (Math.random() * 2 - 1) * 4,
         life: 5 + Math.random() * 3,
         kind: 'leaf',
