@@ -182,6 +182,14 @@ const Renderer = (() => {
           Assets.drawTile(ctx, mapping[0], mapping[1], px, py, TS, TS);
         }
 
+        // Non-solid backing tiles are drawn dimmed so the player can read
+        // platforms vs background at a glance — castle interior wall fill
+        // would otherwise look identical to the solid stone you stand on.
+        if (tile === T.STONE_BG || tile === T.PILLAR) {
+          ctx.fillStyle = 'rgba(8,4,16,0.55)';
+          ctx.fillRect(px | 0, py | 0, TS, TS);
+        }
+
         // Animated overlays for select tiles (drawn on top of the static asset).
         if (tile === T.TORCH)  drawTorchFlame(px, py, tx, t);
         if (tile === T.WATER)  drawWaterShimmer(px, py, tx, t);
