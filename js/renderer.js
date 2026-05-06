@@ -228,17 +228,19 @@ const Renderer = (() => {
     fr(px + 8, py + 22 + phase, 4, 1, P.gemBlue);
   }
 
-  // Per-animation feet position (fraction of cell height) measured from each
-  // generated cell's lowest opaque pixel. Used to align character feet with
-  // the body box bottom so the player doesn't float in air.
+  // Per-animation feet position (fraction of cell height) measured by finding
+  // the bottommost row in each cell with substantial body width (>=18 px).
+  // The plain bottom-most-opaque pixel was unreliable for idle, where the
+  // sword tip extends below the feet — the wide-row probe ignores those thin
+  // protrusions and lands on the actual boot/leg silhouette instead.
   const PLAYER_FEET_REL = {
-    idle:   0.998,
-    run:    0.709,
-    jump:   0.586,
-    fall:   0.734,
-    windup: 0.613,
-    strike: 0.582,
-    hurt:   0.555,
+    idle:   0.766,
+    run:    0.701,
+    jump:   0.576,
+    fall:   0.723,
+    windup: 0.609,
+    strike: 0.555,
+    hurt:   0.504,
     death:  0.648,
   };
 
