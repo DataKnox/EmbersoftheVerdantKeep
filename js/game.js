@@ -281,10 +281,7 @@ const Game = (() => {
             spawnDeathBurst(e);
             Audio.play('death');
             triggerShake(3.2, 0.22);
-            if (e.type !== 'wisp') {
-              // small score reward
-              player.gems += 0;  // (no gems for kills — but keep hook)
-            }
+            player.score += 1;
           } else if (before > 0) {
             // brief micro-shake on non-killing hit
           }
@@ -556,17 +553,18 @@ const Game = (() => {
     ctx.fillStyle = P.relicGold;
     ctx.font = 'bold 14px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('YOUR EMBER FADES', cw / 2, ch / 2 - 18);
+    ctx.fillText('YOUR EMBER FADES', cw / 2, ch / 2 - 22);
 
     ctx.fillStyle = P.uiCream;
     ctx.font = '8px monospace';
-    ctx.fillText(`Gems gathered:  ${player.gems}`, cw / 2, ch / 2 + 2);
+    ctx.fillText(`Enemies slain:  ${player.score}`, cw / 2, ch / 2 - 4);
+    ctx.fillText(`Gems gathered:  ${player.gems}`, cw / 2, ch / 2 + 8);
     ctx.fillStyle = player.hasRelic ? P.relicGoldHL : 'rgba(244,236,208,0.45)';
-    ctx.fillText(player.hasRelic ? '★ Verdant relic recovered ★' : 'The relic remains lost…', cw / 2, ch / 2 + 14);
+    ctx.fillText(player.hasRelic ? '★ Verdant relic recovered ★' : 'The relic remains lost…', cw / 2, ch / 2 + 20);
 
     if (gameOverTimer > 0.7 && Math.floor(gameOverTimer * 2) % 2 === 0) {
       ctx.fillStyle = P.uiCream;
-      ctx.fillText('PRESS ENTER TO TRY AGAIN', cw / 2, ch / 2 + 36);
+      ctx.fillText('PRESS ENTER TO TRY AGAIN', cw / 2, ch / 2 + 38);
     }
     ctx.restore();
   }
@@ -586,6 +584,16 @@ const Game = (() => {
       const filled = (player.hp - i * 2);
       drawHeartIcon(x, y, filled);
     }
+
+    // Kill score (below hearts, top-left)
+    drawSwordIcon(4, 15);
+    ctx.font = 'bold 7px monospace';
+    ctx.textAlign = 'left';
+    const scoreStr = String(player.score).padStart(4, '0');
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillText(scoreStr, 15, 24);
+    ctx.fillStyle = P.uiCream;
+    ctx.fillText(scoreStr, 14, 23);
 
     // Gem counter
     const x = cw - 38, y = 4;
@@ -674,6 +682,14 @@ const Game = (() => {
       ctx.fillStyle = liteCol;
       ctx.fillRect(x + 2, y + 2, 1, 1);
     }
+  }
+
+  function drawSwordIcon(x, y) {
+    const P = Renderer.PALETTE;
+    Renderer.fr(x + 3, y,     1, 5, P.uiCream);      // blade
+    Renderer.fr(x + 1, y + 5, 5, 1, P.relicGold);    // crossguard
+    Renderer.fr(x + 3, y + 6, 1, 2, P.relicGoldDark);// handle
+    Renderer.fr(x + 3, y,     1, 1, '#ffffff');       // tip highlight
   }
 
   function drawGemIcon(x, y) {
