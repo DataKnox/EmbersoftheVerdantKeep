@@ -1,0 +1,7 @@
+{
+  "private": true,
+  "description": "CI-only test dependencies — not part of the game source.",
+  "devDependencies": {
+    "playwright": "^1.44.0"
+  }
+}
