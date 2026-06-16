@@ -17,6 +17,7 @@ for f in js/*.js; do
     PASS=$((PASS + 1))
   else
     printf 'FAIL %s\n' "$f"
+    printf '%s\n' "$ERR" >&2
     # Collapse to one line and escape XML special chars for the attribute value.
     MSG=$(printf '%s' "$ERR" | tr '\n' ' ' | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/"/\&quot;/g')
     CASES="${CASES}  <testcase name=\"$f\" classname=\"syntax\"><failure message=\"${MSG}\"/></testcase>\n"
