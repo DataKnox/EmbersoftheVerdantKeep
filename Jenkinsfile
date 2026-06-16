@@ -90,7 +90,7 @@ pipeline {
         stage('Headless Browser Test') {
             agent {
                 docker {
-                    image 'mcr.microsoft.com/playwright:v1.44.0-jammy'
+                    image 'mcr.microsoft.com/playwright:v1.61.0-jammy'
                     reuseNode true
                     args  '-u root'
                 }
