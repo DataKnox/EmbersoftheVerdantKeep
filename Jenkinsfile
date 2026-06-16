@@ -13,8 +13,8 @@
 // Prerequisites on the Jenkins node:
 //   - Docker Engine + Docker CLI on PATH
 //   - Docker Pipeline plugin
-//   - Node.js on PATH (for stages 3 & 4)
 //   - Python 3 on PATH (for the http.server in stage 5)
+//   Node.js is NOT required on the agent — stages 3 & 4 run inside node:lts-alpine.
 
 pipeline {
     agent any
@@ -48,6 +48,12 @@ pipeline {
 
         // ── Syntax check ───────────────────────────────────────────────────────
         stage('Syntax Check') {
+            agent {
+                docker {
+                    image 'node:lts-alpine'
+                    reuseNode true
+                }
+            }
             steps {
                 sh 'sh tests/syntax-check.sh'
             }
@@ -58,6 +64,12 @@ pipeline {
             parallel {
 
                 stage('Smoke Tests') {
+                    agent {
+                        docker {
+                            image 'node:lts-alpine'
+                            reuseNode true
+                        }
+                    }
                     steps {
                         // Loads every JS module via Node vm stubs; fails if any
                         // IIFE throws during initialisation.
@@ -66,6 +78,12 @@ pipeline {
                 }
 
                 stage('Unit Tests') {
+                    agent {
+                        docker {
+                            image 'node:lts-alpine'
+                            reuseNode true
+                        }
+                    }
                     steps {
                         // Pure-logic tests: tile queries, AABB collision sweep.
                         sh 'node tests/unit.js'
@@ -73,6 +91,12 @@ pipeline {
                 }
 
                 stage('Manifest Check') {
+                    agent {
+                        docker {
+                            image 'node:lts-alpine'
+                            reuseNode true
+                        }
+                    }
                     steps {
                         // Verifies every PNG listed in assets/manifest.json
                         // exists on disk.
