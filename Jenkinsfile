@@ -22,6 +22,7 @@ pipeline {
     environment {
         IMAGE_NAME = 'knoxtrades/embers'
         REPO_URL   = 'https://github.com/DataKnox/EmbersoftheVerdantKeep.git'
+        TAG        = "${env.BUILD_NUMBER}"
     }
 
     stages {
@@ -133,6 +134,27 @@ pipeline {
                         image --exit-code 1 --severity HIGH,CRITICAL \
                         "${IMAGE_NAME}:${BUILD_NUMBER}"
                 '''
+            }
+        }
+
+        stage('Push') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub',
+                    usernameVariable: 'DH_USER',
+                    passwordVariable: 'DH_PASS')]) {
+                    sh 'echo "$DH_PASS" | docker login -u "$DH_USER" --password-stdin'
+                    sh 'docker push $IMAGE_NAME:$TAG'
+                    sh 'docker push $IMAGE_NAME:latest'
+                }
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                sh 'microk8s kubectl apply -f k8s/'
+                sh 'microk8s kubectl set image deployment/myapp myapp=$IMAGE_NAME:$TAG'
+                sh 'microk8s kubectl rollout status deployment/myapp'
             }
         }
 
